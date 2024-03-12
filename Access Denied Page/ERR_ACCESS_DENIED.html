@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ooops!</title>
+    <link rel="shortcut icon" href="faviconWhite.ico" type="image/x-icon" />
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap");
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        font-family: "Poppins" Arial, Helvetica, sans-serif;
+        font-size: 16px;
+      }
+
+      body {
+        background-color: rgb(240, 240, 240);
+        display: flex;
+        height: 100vh;
+        justify-content: center;
+        align-items: center;
+      }
+
+      #container {
+        height: 60vh;
+        width: 80vw;
+        background-color: rgb(253, 253, 253);
+        border-radius: 40px;
+        box-shadow: 6px 6px 22px -4px rgba(72, 72, 72, 0.1);
+
+        padding: 108px 110px 60px 128px;
+      }
+
+      #main-text {
+        display: flex;
+        justify-content: space-between;
+        flex-direction: column;
+        gap: 60px;
+      }
+
+      #footer {
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      #main {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        height: 100%;
+      }
+
+      h1 {
+        font-size: 70px;
+        font-weight: bold;
+      }
+
+      p {
+        font-size: 20px;
+        font-weight: 500;
+        line-height: 28px;
+      }
+
+      a {
+        font-weight: 600;
+        text-decoration: none;
+        pointer-events: stroke;
+        color: #5c28a4;
+
+        &:active {
+          color: rgb(201, 154, 237);
+        }
+      }
+
+      img {
+        filter: grayscale();
+        height: 40px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="container">
+      <div id="main">
+        <div id="main-text">
+          <h1>Ooops!</h1>
+          <p>
+            Este site foi bloqueado pela ConectaNet por violar nossas políticas
+            de uso.<br />Para mais informações,
+            <a href="mailto:support@conecta.net">entre em contato conosco</a>.
+          </p>
+        </div>
+        <div id="footer">
+          <small>Atenciosamente, Equipe de TI da ConectaNet</small>
+          <img src="logo-transparent.png" alt="Logo ConectaNet" />
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
