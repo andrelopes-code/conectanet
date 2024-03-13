@@ -1,23 +1,35 @@
 # ConectaNet
 
+<br>
+
+<br>
+
 ## Configuração Básica
+
+### Informações da Máquina
 - Nome da máquina: **srv-conectanet**
 - sistema operacional: **ubuntu server 16.04 LTS**
 - Nome de usuário: **conectanet**
 - Senha: **ConectaNet@2023.2**
 - domínio: **conecta.net**
 
-### Atualizar os pacotes do sistema
+<br>
+
+### Atualização dos Pacotes do Sistema
+Para garantir que o sistema esteja atualizado, execute os seguintes comandos:
 ```bash
 sudo apt update
-sudo apt upgrade
+sudo apt upgrade -y
 ```
 
-### Configuração do arquivo `/etc/hosts`
+<br>
+
+### Configuração do Arquivo `/etc/hosts`
+Edite o arquivo `/etc/hosts` com o seguinte conteúdo:
 ```bash
 sudo vi /etc/hosts
 ```
->arquivo **/etc/hosts**
+conteúdo do arquivo:
 ```bash
 127.0.0.1       localhost
 127.0.1.1       srv-conectanet
@@ -29,11 +41,14 @@ ff02::1 ip6-allnodes
 ff02::2 ip6-allrouters
 ```
 
-### Configuração das interfaces de rede
+<br>
+
+### Configuração das Interfaces de Rede
+Edite o arquivo `/etc/network/interfaces` com o seguinte conteúdo:
 ```bash
 sudo vi /etc/network/interfaces
 ```
->arquivo **/etc/network/interfaces**
+conteúdo do arquivo:
 ```bash
 # This file describes the network interfaces available on your system
 # and how to activate them. For more information, see interfaces(5).
@@ -49,8 +64,8 @@ auto eno1
 iface eno1 inet dhcp
 
 # Interface de rede secundária
-auto xpto
-iface xpto inet static
+auto enp2s0
+iface enp2s0 inet static
 
 address 192.168.15.254
 netmask 255.255.255.0
@@ -61,11 +76,15 @@ dns-domain conecta.net
 dns-search conecta.net
 ```
 
+<br>
+
+<br>
+
 ## Firewall Iptables
 
-### Arquivo de script das regras do firewall (Iptables)
+### Arquivo de Script das Regras do Firewall (Iptables)
 
->arquivo **firewall**
+conteúdo do arquivo `firewall`:
 ```bash
 #!/bin/bash
 
@@ -186,23 +205,33 @@ vi|conf)sudo vi /usr/local/sbin/firewall;;
 *)echo "usage: 
 firewall [start|stop|restart|list|vi]";;
 esac
+
+<br>
+
 ```
-##### Tornar o script um executavel
+#### Tornar o script um executavel
 ```bash
 sudo chmod +x firewall
 ```
-##### Mover o script para uma pasta do $PATH
+
+<br>
+
+#### Mover o script para uma pasta do $PATH
 ```bash
 sudo mv firewall /usr/local/sbin
 ```
 
-### Inicialização automática do script firewall
+<br>
 
-##### Criar o arquivo de serviço do firewall
+### Inicialização Automática do Script Firewall
+
+<br>
+
+#### Criar o arquivo de serviço do firewall
 ```bash
 sudo vi /lib/systemd/system/firewall.service
 ```
->arquivo **/lib/systemd/system/firewall.service**
+conteúdo do arquivo:
 ```bash
 [Unit]
 Description=Inicializa o script firewall automaticamente.
@@ -218,24 +247,39 @@ ExecStop=/usr/local/sbin/firewall stop
 RemainAfterExit=true
 KillMode=process
 ```
-##### Recarregar daemons do sistema
+
+<br>
+
+#### Recarregar daemons do sistema
 ```bash
 sudo systemctl daemon-reload
 ```
-##### Ativar o serviço do firewall
+
+<br>
+
+#### Ativar o serviço do firewall
 ```bash
 sudo systemctl enable firewall.service
 ```
+
+<br>
+
+<br>
+
 ## Proxy Squid
+
 ### Instalar o Squid3 e Apache2
 ```bash
 sudo apt install squid3 apache2
 ```
-### Arquivo de configuração do Squid
+
+<br>
+
+### Arquivo de Configuração do Squid
 ```bash
 sudo vi /etc/squid/squid.conf
 ```
->arquivo **/etc/squid/squid.conf**
+conteúdo do arquivo:
 ```bash
 #==  ACL's padrao  ============================================================#
 acl SSL_ports port 443 563 873                                                        
@@ -294,7 +338,10 @@ refresh_pattern -i (/cgi-bin/|\?) 0 0%  0
 refresh_pattern (Release|Packages(.gz)*)$      0       20%     2880
 refresh_pattern .       0   20% 4320
 ```
-### Pasta de cache do Squid
+
+<br>
+
+### Pasta de Cache do Squid
 ```bash
 # Criar a pasta cache
 sudo mkdir /etc/squid/cache
@@ -307,11 +354,14 @@ sudo squid -z
 # Reinicia o Squid
 sudo service squid restart
 ```
-### Página de acesso negado
+
+<br>
+
+### Página de Acesso Negado
 ```bash
 sudo vi /usr/share/squid/errors/pt-br/ERR_ACCESS_DENIED
 ```
->arquivo **/usr/share/squid/errors/pt-br/ERR_ACCESS_DENIED**
+conteúdo do arquivo:
 ```html
 <!DOCTYPE  html>
 <html  lang="pt-br">
@@ -420,35 +470,209 @@ height:  40px;
 </body>
 </html>
 ```
+
+<br>
+
 ### Criar pasta `files` e arquivo `negados.acl`
 ```bash
 sudo mkdir /etc/squid/files
 sudo touch /etc/squid/files/negados.acl
 ```
+
+<br>
+
 ### Reiniciar o Squid
 ```bash
 sudo service squid restart
 ```
+
+<br>
+
+<br>
+
 ## Sarg
 ### Instalar o Sarg
 ```bash
 sudo apt install sarg
 ```
+
+<br>
+
 ### Arquivo de configuração do Sarg
 ```bash
 sudo vi /etc/sarg/sarg.conf
 ```
-> arquivo **/etc/sarg/sarg.conf**
+conteúdo do arquivo:
 ```bash
+# Arquivo de configuração do SARG para análise de logs do Squid
+
+# Localização do arquivo de log de acesso do Squid
+access_log /var/log/squid/access.log
+
+# Título da página de relatórios
+title "Logs de acesso do Squid"
+
+# Fonte para o texto
+font_face Tahoma,Verdana,Arial
+
+# Cor do cabeçalho
+header_color #000
+
+# Cor de fundo do cabeçalho
+header_bgcolor #c9b2ed
+
+# Tamanho da fonte
+font_size 14px
+
+# Tamanho da fonte do cabeçalho
+header_font_size 14px
+
+# Tamanho da fonte do título
+title_font_size 14px
+
+# Cor de fundo do texto
+background_color #f3f3f3
+
+# Cor do texto
+text_color #000
+
+# Cor de fundo do texto
+text_bgcolor lavender
+
+# Cor do título
+title_color #966ccc
+
+# URL da imagem do logotipo
+logo_image https://i.postimg.cc/Gtq5tfNL/logo-transparent.png
+
+# Texto do logotipo
+logo_text "ConectaNet Reports"
+
+# Cor do texto do logotipo
+logo_text_color #966ccc
+
+# Diretório temporário
+temporary_dir /tmp
+
+# Diretório de saída dos relatórios
+output_dir /var/www/html/squid-reports
+
+# Resolver IPs
+resolve_ip no
+
+# Exibir IPs do usuário
+user_ip no
+
+# Campo de ordenação para os principais usuários
+topuser_sort_field BYTES reverse
+
+# Campo de ordenação para os usuários
+user_sort_field BYTES reverse
+
+# Arquivo de exclusão de usuários
+exclude_users /etc/sarg/exclude_users
+
+# Arquivo de exclusão de hosts
+exclude_hosts /etc/sarg/exclude_hosts
+
+# Formato da data
+date_format u
+
+# Último log
+lastlog 0
+
+# Remover arquivos temporários
+remove_temp_files yes
+
+# Indexar os relatórios
+index yes
+
+# Organização dos índices em árvore de arquivos
+index_tree file
+
+# Sobrescrever relatórios existentes
+overwrite_report yes
+
+# Registros sem identificação de usuário
+records_without_userid ip
+
+# Utilizar vírgula como separador
+use_comma yes
+
+# Utilitário de e-mail
+mail_utility mailx
+
+# Número de principais sites
+topsites_num 100
+
+# Ordem de classificação dos principais sites
+topsites_sort_order CONNECT D
+
+# Ordem de classificação do índice
+index_sort_order D
+
+# Códigos de exclusão
+exclude_codes /etc/sarg/exclude_codes
+
+# Tempo máximo de duração
+max_elapsed 28800000
+
+# Tipo de relatório
+report_type topusers topsites sites_users users_sites date_time denied auth_failures site_user_time_date downloads
+
+# Arquivo de tabela de usuários
+usertab /etc/sarg/usertab
+
+# URLs longas
+long_url no
+
+# Data e hora por bytes
+date_time_by bytes
+
+# Conjunto de caracteres
+charset Latin1
+
+# Exibir mensagem de sucesso
+show_successful_message no
+
+# Exibir estatísticas de leitura
+show_read_statistics no
+
+# Campos do relatório de principais usuários
+topuser_fields NUM DATE_TIME USERID CONNECT BYTES %BYTES IN-CACHE-OUT USED_TIME MILISEC %TIME TOTAL AVERAGE
+
+# Campos do relatório de usuários
+user_report_fields CONNECT BYTES %BYTES IN-CACHE-OUT USED_TIME MILISEC %TIME TOTAL AVERAGE
+
+# Número de principais usuários
+topuser_num 0
+
+# Exibir logotipo do SARG
+show_sarg_logo no
+
+# Arquivo CSS externo
+external_css_file http://192.168.15.254/squid-reports/style.css
+
+# Sufixo para download
+download_suffix "zip,arj,bzip,gz,ace,doc,iso,adt,bin,cab,com,dot,drv$,lha,lzh,mdb,mso,ppt,rtf,src,shs,sys,exe,dll,mp3,avi,mpg,mpeg"
 
 ```
+
+<br>
+
+<br>
+
 ## DHCP
+
 ### Instalar o isc-dhcp-server
 ```bash
 sudo apt install isc-dhcp-server
 ```
+
+<br>
+
 ### Configurar o arquivo /etc/dhcp/dhcpd.conf
->arquivo **/etc/dhcp/dhcpd.conf**
+conteúdo do arquivo:
 ```bash
 # Configuração do serviço DHCP.
 authoritative;
@@ -464,18 +688,26 @@ subnet 192.168.15.0 netmask 255.255.255.0 {
         }
 ```
 
+<br>
+
 ### Configurar interface para execução do DHCP
 ```bash
 sudo vi /etc/default/isc-dhcp-server
 ```
->arquivo **/etc/default/isc-dhcp-server**
+conteúdo do arquivo:
 ```bash
 arquivo isc-dhcp-server aqui
 ```
+
+<br>
 
 ### Reiniciar o serviço isc-dhcp-server
 ```bash
 sudo service isc-dhcp-server restart
 ```
+
+<br>
+
+<br>
 
 ## AD (samba-ad-dc)
