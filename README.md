@@ -1,4 +1,4 @@
-
+# ConectaNet
 
 ## Configuração Básica
 - Nome da máquina: **srv-conectanet**
@@ -440,7 +440,7 @@ sudo vi /etc/sarg/sarg.conf
 ```
 > arquivo **/etc/sarg/sarg.conf**
 ```bash
-configuração sarg
+
 ```
 ## DHCP
 ### Instalar o isc-dhcp-server
