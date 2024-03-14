@@ -36,10 +36,13 @@ local(){
     iptables -t filter -A INPUT -i $int -p tcp --dport 3128 -j ACCEPT
     iptables -t filter -A OUTPUT -o $int -p tcp --sport 3128 -j ACCEPT
 
-    # Libera trafego nas portas do Samba (139 e 445)
-    iptables -t filter -A INPUT -p tcp -m multiport --dports 139,445 -j ACCEPT
-    iptables -t filter -A OUTPUT -p tcp -m multiport --sports 139,445 -j ACCEPT
-    
+    # Libera trafego nas portas do Samba (137, 138, 139 e 445)
+    iptables -t filter -A INPUT -p tcp -m multiport --dports 137,138,139,445 -j ACCEPT
+    iptables -t filter -A OUTPUT -p tcp -m multiport --sports 137,138,139,445 -j ACCEPT
+
+    iptables -t filter -A INPUT -p udp -m multiport --sports 138,137 -j ACCEPT
+    iptables -t filter -A OUTPUT -p udp -m multiport --dports 138,137 -j ACCEPT
+
     # libera a porta SSH (22) para um IP confiavel
     iptables -t filter -A INPUT -i $int -p tcp --dport 22 -s 192.168.15.10 -j ACCEPT
     iptables -t filter -A OUTPUT -o $int -p tcp --sport 22 -d 192.168.15.10 -j ACCEPT
@@ -77,32 +80,25 @@ internet(){
 }
 
 
-default(){
-    # Funcao para definir as regras padrao
-
-    # Bloqueia tudo que não foi explicitamente liberado
-    iptables -t filter -P INPUT DROP
-    iptables -t filter -P OUTPUT DROP
-    iptables -t filter -P FORWARD DROP
-}
-
-
 #==  Funcoes de controle  ==================================================================#
 
-logging() {
-    iptables -A INPUT -m limit --limit 5/min -j LOG --log-prefix "iptables-denied: " --log-level 7
-    iptables -A OUTPUT -m limit --limit 5/min -j LOG --log-prefix "iptables-denied: " --log-level 7
-    iptables -A FORWARD -m limit --limit 5/min -j LOG --log-prefix "iptables-denied: " --log-level 7
+default() {
+    iptables -N LOGGING
+    iptables -A LOGGING -m limit --limit 5/min -j LOG --log-prefix "iptables-denied: " --log-level 7
+    iptables -A LOGGING -j DROP
+
+    iptables -t filter -P INPUT LOGGING
+    iptables -t filter -P OUTPUT LOGGING
+    iptables -t filter -P FORWARD LOGGING
 }
 
 iniciar(){
     # Funcao para iniciar o firewall
 
-    logging
-    default
     local
     forward
     internet
+    default
 }
 
 
