@@ -1,0 +1,13 @@
+[Unit]
+Description=Raise Inicializa o firewall automaticamente.
+After=network.target
+
+[Install]
+WantedBy=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/firewall start
+ExecStop=/usr/local/sbin/firewall stop
+RemainAfterExit=true
+KillMode=process
