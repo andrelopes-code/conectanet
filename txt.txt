@@ -1,6 +1,0 @@
-
-logging (loga as conexões que nao se encaixaram em nenhuma regra de permissao, ou seja, seram bloqueadas)
-default (bloqueia as conexões que nao se encaixaram em nenhuma regra de permissao)
-local (define as regras local, como regras SSH, web servers, como exemplo, ela permite apenas SSH e mais nada)
-forward (define as regras de forward, permite apenas a passagem para serviços web, 80,443)
-internet (faz o mascaramento de IP, etc.)
