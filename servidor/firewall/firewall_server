@@ -1,0 +1,153 @@
+#!/bin/bash
+
+
+# Variaveis locais
+ext="eno1"              # Interface de rede externa
+int="enp2s0"            # Interface de rede interna
+lnet="192.168.15.0/24"  # endereço da rede local
+
+#==  Funcoes para definicao de regras ======================================================#
+
+
+local(){
+        # Funcao para configuracao das regras de firewall para comunicacao local
+
+        # Permite trafego TCP e UDP de entrada e saida nas portas
+        # 80, 443, 53, 123 (HTTP, HTTPS, DNS, NTP)
+        iptables -t filter -A INPUT -i $ext -p tcp -m multiport --sports 80,443 -j ACCEPT
+        iptables -t filter -A INPUT -i $ext -p udp -m multiport --sports 53,123 -j ACCEPT
+        iptables -t filter -A OUTPUT -o $ext -p tcp -m multiport --dports 80,443 -j ACCEPT
+        iptables -t filter -A OUTPUT -o $ext -p udp -m multiport --dports 53,123 -j ACCEPT
+
+        # Libera todo o trafego da lo na rede
+        iptables -t filter -A INPUT -i lo -j ACCEPT
+        iptables -t filter -A OUTPUT -o lo -j ACCEPT
+
+        # Libera o ping (ICMP) na rede externa
+        iptables -t filter -A INPUT -i $ext -p icmp --icmp-type 0 -j ACCEPT
+        iptables -t filter -A OUTPUT -o $ext -p icmp --icmp-type 8 -j ACCEPT
+
+        # Libera o ping (ICMP) na rede interna
+        iptables -t filter -A INPUT -i $int -p icmp --icmp-type 0 -j ACCEPT
+        iptables -t filter -A OUTPUT -o $int -p icmp --icmp-type 8 -j ACCEPT
+
+        # Libera o trafego TCP do Squid (3128)
+        iptables -t filter -A INPUT -i $int -p tcp --dport 3128 -j ACCEPT
+        iptables -t filter -A OUTPUT -o $int -p tcp --sport 3128 -j ACCEPT
+
+        # libera a porta SSH (22) para um IP confiavel
+        iptables -t filter -A INPUT -p tcp --dport 22 -j ACCEPT
+        iptables -t filter -A OUTPUT -p tcp --sport 22 -j ACCEPT
+
+        # Libera trafego nas portas do Samba (137, 138, 139 e 445)
+        iptables -t filter -A INPUT -p tcp -m multiport --dports 135,137,138,139,445 -j ACCEPT
+        iptables -t filter -A OUTPUT -p tcp -m multiport --sports 135,137,138,139,445 -j ACCEPT
+
+        iptables -t filter -A INPUT -p udp -m multiport --sports 135,137,138,139,445 -j ACCEPT
+        iptables -t filter -A OUTPUT -p udp -m multiport --sports 135,137,138,139,445 -j ACCEPT
+
+
+        # Permitir portas do samba4 para o servidor
+        iptables -A INPUT -s 192.168.15.0/24 -p tcp --dport 53 -j ACCEPT
+        iptables -A INPUT -s 192.168.15.0/24 -p udp --dport 53 -j ACCEPT
+        iptables -A INPUT -s 192.168.15.0/24 -p tcp --dport 88 -j ACCEPT
+        iptables -A INPUT -s 192.168.15.0/24 -p udp --dport 88 -j ACCEPT
+        iptables -A INPUT -s 192.168.15.0/24 -p tcp --dport 135 -j ACCEPT
+        iptables -A INPUT -s 192.168.15.0/24 -p udp --dport 137 -j ACCEPT
+        iptables -A INPUT -s 192.168.15.0/24 -p udp --dport 138 -j ACCEPT
+        iptables -A INPUT -s 192.168.15.0/24 -p tcp --dport 139 -j ACCEPT
+        iptables -A INPUT -s 192.168.15.0/24 -p tcp --dport 389 -j ACCEPT
+        iptables -A INPUT -s 192.168.15.0/24 -p udp --dport 389 -j ACCEPT
+        iptables -A INPUT -s 192.168.15.0/24 -p tcp --dport 445 -j ACCEPT
+        iptables -A INPUT -s 192.168.15.0/24 -p tcp --dport 464 -j ACCEPT
+        iptables -A INPUT -s 192.168.15.0/24 -p udp --dport 464 -j ACCEPT
+        iptables -A INPUT -s 192.168.15.0/24 -p tcp --dport 636 -j ACCEPT
+        iptables -A INPUT -s 192.168.15.0/24 -p tcp --dport 1024:5000 -j ACCEPT
+        iptables -A INPUT -s 192.168.15.0/24 -p tcp --dport 3268 -j ACCEPT
+        iptables -A INPUT -s 192.168.15.0/24 -p tcp --dport 3269 -j ACCEPT
+        iptables -A INPUT -s 192.168.15.0/24 -p tcp --dport 5353 -j ACCEPT
+        iptables -A INPUT -s 192.168.15.0/24 -p udp --dport 5353 -j ACCEPT
+
+        # Permitor portas do DNS e HTTP para o servidor realizar
+        # atualizações e instalações de novos pacotes
+        iptables -A INPUT -d 192.168.15.254 -p tcp --sport 80 -j ACCEPT
+        iptables -A INPUT -d 192.168.15.254 -p tcp --sport 53 -j ACCEPT
+        iptables -A INPUT -d 192.168.15.254 -p udp --sport 53 -j ACCEPT
+
+        iptables -t filter -A INPUT -p tcp -m state --state ESTABLISHED,RELATED -j ACCEPT
+        iptables -t filter -A OUTPUT -p tcp -m state --state ESTABLISHED,RELATED -j ACCEPT
+}
+
+
+forward(){
+        # Funcao para encaminhamento de trafego entre WAN e LAN
+
+        # Libera o trafego entre a INTERNET e a REDE LOCAL
+        iptables -t filter -A FORWARD -i $ext -p tcp -m multiport --sports 80,443 -d $lnet -j ACCEPT
+        iptables -t filter -A FORWARD -i $ext -p udp -m multiport --sports 53,123 -d $lnet -j ACCEPT
+        iptables -t filter -A FORWARD -i $int -p tcp -m multiport --dports 80,443 -s $lnet -j ACCEPT
+        iptables -t filter -A FORWARD -i $int -p udp -m multiport --dports 53,123 -s $lnet -j ACCEPT
+
+        # Libera o ping entre a INTERNET e a REDE LOCAL
+        iptables -t filter -A FORWARD -i $int -p icmp --icmp-type 8 -s $lnet -j ACCEPT
+        iptables -t filter -A FORWARD -o $int -p icmp --icmp-type 0 -d $lnet -j ACCEPT
+        iptables -t filter -A FORWARD -i $ext -p icmp --icmp-type 0 -d $lnet -j ACCEPT
+        iptables -t filter -A FORWARD -o $ext -p icmp --icmp-type 8 -s $lnet -j ACCEPT
+}
+
+
+internet(){
+        # Funcao para habilitar o compartilhamento da internet entre as redes
+
+        # Habilita o encaminhamento de IP
+        sysctl -w net.ipv4.ip_forward=1
+
+        # Configura NAT para o trafego da LAN para a Internet
+        iptables -t nat -A POSTROUTING -s $lnet -o $ext -j MASQUERADE
+
+        # Direcionar navegacao na porta HTTP (80) para a porta do proxy/squid (3128)
+        iptables -t nat -A PREROUTING -i $int -p tcp --dport 80 -j REDIRECT --to-port 3128
+}
+
+
+
+#==  Funcoes de controle  ==================================================================#
+
+default() {
+        iptables -t filter -A INPUT -j DROP
+        iptables -t filter -A FORWARD -j DROP
+        iptables -t filter -A OUTPUT -j DROP
+}
+
+iniciar(){
+        # Funcao para iniciar o firewall
+
+        local
+        forward
+        internet
+        default
+}
+
+
+parar(){
+        # Funcao para parar o firewall
+
+        iptables -t filter -P INPUT ACCEPT
+        iptables -t filter -P OUTPUT ACCEPT
+        iptables -t filter -P FORWARD ACCEPT
+        iptables -t filter -F
+}
+
+
+#==  Script para controle do firewall  =====================================================#
+
+
+case $1 in
+start|Start|START)iniciar;;
+stop|Stop|STOP)parar;;
+restart|Restart|RESTART)parar;iniciar;;
+listar|list)iptables -t filter -nvL;;
+vi|conf)sudo vi /usr/local/sbin/firewall;;
+*)echo "usage:
+firewall [start|stop|restart|list|vi]";;
+esac
