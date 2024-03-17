@@ -1,20 +1,20 @@
+INTERFACE_INTERNA="enp0s8"
+INTERFACE_EXTERNA="enp0s3"
 HOSTNAME="srv-cnet"
 IP_ADDRESS="192.168.0.254"
-DOMAIN="conectanet.lan"
-INTERFACE_INTERNA="enp0s8"
-NAMESERVERS="192.168.0.254 8.8.8.8 1.1.1.1"
-BROADCAST="192.168.0.255"
-NETWORK="192.168.0.0"
 NETMASK="255.255.255.0"
+NETWORK="192.168.0.0"
+BROADCAST="192.168.0.255"
+DOMAIN="conectanet.lan"
+NAMESERVERS="192.168.0.254 8.8.8.8 1.1.1.1"
 
 DHCP_NAMESERVERS="192.168.0.254, 8.8.8.8, 1.1.1.1"
 RANGE="192.168.0.10 192.168.0.230"
 GATEWAY="192.168.0.254"
 
 atualizar_sistema() {
-  # Atualiza o sistema
-  apt update > /dev/null
-  apt upgrade -y > /dev/null
+  apt update
+  apt upgrade -y
 }
 instalar_dependencias() {
   apt install build-essential libacl1-dev libattr1-dev libblkid-dev libgnutls-dev libreadline-dev python-dev libpam0g-dev python-dnspython gdb pkg-config libpopt-dev libldap2-dev dnsutils libbsd-dev docbook-xsl libcups2-dev nfs-kernel-server isc-dhcp-server -y
@@ -33,6 +33,8 @@ alterar_hostname() {
 }
 configurar_interface_de_rede() {
   sed -i -e "10a \
+  auto ${INTERFACE_EXTERNA}\n\
+  iface ${INTERFACE_EXTERNA} inet static\n\
   auto ${INTERFACE_INTERNA}\n\
   iface ${INTERFACE_INTERNA} inet static\n\
   address ${IP_ADDRESS}\n\
@@ -81,7 +83,6 @@ copiar_arquivos() {
     cp servidor/proxy/squid.conf /etc/squid/squid.conf
     mkdir /etc/squid/files
     touch /etc/squid/files/negados.acl
-    echo "fiemg.com.br" > negados.acl
 
     cp servidor/sarg/sarg.conf /etc/sarg/sarg.conf
 }
@@ -102,16 +103,15 @@ renomear_arquivo_smb() {
   mv /etc/samba/smb.conf /etc/samba/smb.conf.bak
 }
 parar_servicos_necessarios() {
-  systemctl disable --now smbd nmbd winbind systemd-resolved
-  systemctl disable --now systemd-resolved
+  systemctl disable --now smbd nmbd winbind
   unlink /etc/resolv.conf
   touch /etc/resolv.conf
-  echo "# IP do servidor samba \
-        nameserver ${IP_ADDRESS} \
-        # fallback resolver \
-        nameserver 8.8.8.8  \
-        # dominio principal para o samba \
-        search ${DOMAIN}"
+  echo "# IP do servidor samba 
+        nameserver ${IP_ADDRESS} 
+        # fallback resolver 
+        nameserver 8.8.8.8  
+        # dominio principal para o samba
+        search ${DOMAIN}" > /etc/resolv.conf
   chattr +i /etc/resolv.conf
   systemctl unmask samba-ad-dc
   systemctl enable samba-ad-dc

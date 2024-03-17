@@ -37,8 +37,8 @@ local(){
     iptables -t filter -A OUTPUT -o $int -p tcp --sport 3128 -j ACCEPT
     
     # libera a porta SSH (22) para um IP confiavel
-    iptables -t filter -A INPUT -i $int -p tcp --dport 22 -s 0.0.0.0 -j ACCEPT
-    iptables -t filter -A OUTPUT -o $int -p tcp --sport 22 -d 0.0.0.0 -j ACCEPT
+    iptables -t filter -A INPUT -p tcp --dport 22 -s 0.0.0.0 -j ACCEPT
+    iptables -t filter -A OUTPUT -p tcp --sport 22 -d 0.0.0.0 -j ACCEPT
 
     # Libera trafego nas portas do Samba (135, 137, 138, 139 e 445)
     sambaports="135,137,138,139,445"
@@ -55,9 +55,9 @@ local(){
 
     # Permitor portas do DNS e HTTP para o servidor realizar
     # atualizações e instalações de novos pacotes
-    iptables -A INPUT -d 192.168.15.254 -p tcp --sport 80 -j ACCEPT
-    iptables -A INPUT -d 192.168.15.254 -p tcp --sport 53 -j ACCEPT
-    iptables -A INPUT -d 192.168.15.254 -p udp --sport 53 -j ACCEPT
+    iptables -A INPUT -d 192.168.0.254 -p tcp --sport 80 -j ACCEPT
+    iptables -A INPUT -d 192.168.0.254 -p tcp --sport 53 -j ACCEPT
+    iptables -A INPUT -d 192.168.0.254 -p udp --sport 53 -j ACCEPT
 
     iptables -t filter -A INPUT -p tcp -m state --state ESTABLISHED,RELATED -j ACCEPT
     iptables -t filter -A OUTPUT -p tcp -m state --state ESTABLISHED,RELATED -j ACCEPT
@@ -105,10 +105,6 @@ default() {
     iptables -t filter -A INPUT -j LOGGING
     iptables -t filter -A OUTPUT -j LOGGING
     iptables -t filter -A FORWARD -j LOGGING
-
-    iptables -t filter -P INPUT DROP
-    iptables -t filter -P OUTPUT DROP
-    iptables -t filter -P FORWARD DROP
 }
 
 iniciar(){
