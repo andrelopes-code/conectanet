@@ -2,9 +2,9 @@
 
 
 # Variaveis locais
-ext="eno1"                # Interface de rede externa
-int="enp2s0"              # Interface de rede interna
-lnet="192.168.15.0/24"    # endereço da rede local
+ext="enp0s3"                # Interface de rede externa
+int="enp0s8"              # Interface de rede interna
+lnet="192.168.0.0/24"    # endereço da rede local
 
 
 #==  Funcoes para definicao de regras ======================================================#
@@ -102,9 +102,13 @@ default() {
     iptables -A LOGGING -m limit --limit 5/min -j LOG --log-prefix "iptables-denied: " --log-level 7
     iptables -A LOGGING -j DROP
     
-    iptables -t filter -P INPUT LOGGING
-    iptables -t filter -P OUTPUT LOGGING
-    iptables -t filter -P FORWARD LOGGING
+    iptables -t filter -A INPUT -j LOGGING
+    iptables -t filter -A OUTPUT -j LOGGING
+    iptables -t filter -A FORWARD -j LOGGING
+
+    iptables -t filter -P INPUT DROP
+    iptables -t filter -P OUTPUT DROP
+    iptables -t filter -P FORWARD DROP
 }
 
 iniciar(){
@@ -124,6 +128,7 @@ parar(){
     iptables -t filter -P OUTPUT ACCEPT
     iptables -t filter -P FORWARD ACCEPT
     iptables -t filter -F
+    iptables -X
 }
 
 
