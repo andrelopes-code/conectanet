@@ -20,7 +20,7 @@ local(){
     iptables -t filter -A OUTPUT -o $ext -p tcp -m multiport --dports 80,443 -j ACCEPT
     iptables -t filter -A OUTPUT -o $ext -p udp -m multiport --dports 53,123 -j ACCEPT
     
-    # Libera todo o trafego da lo na rede
+    # Libera todo o trafego da lo
     iptables -t filter -A INPUT -i lo -j ACCEPT
     iptables -t filter -A OUTPUT -o lo -j ACCEPT
     
@@ -36,16 +36,31 @@ local(){
     iptables -t filter -A INPUT -i $int -p tcp --dport 3128 -j ACCEPT
     iptables -t filter -A OUTPUT -o $int -p tcp --sport 3128 -j ACCEPT
     
-    # Libera trafego nas portas do Samba (137, 138, 139 e 445)
-    iptables -t filter -A INPUT -p tcp -m multiport --dports 137,138,139,445 -j ACCEPT
-    iptables -t filter -A OUTPUT -p tcp -m multiport --sports 137,138,139,445 -j ACCEPT
-    
-    iptables -t filter -A INPUT -p udp -m multiport --sports 138,137 -j ACCEPT
-    iptables -t filter -A OUTPUT -p udp -m multiport --dports 138,137 -j ACCEPT
-    
     # libera a porta SSH (22) para um IP confiavel
-    iptables -t filter -A INPUT -i $int -p tcp --dport 22 -s 192.168.15.10 -j ACCEPT
-    iptables -t filter -A OUTPUT -o $int -p tcp --sport 22 -d 192.168.15.10 -j ACCEPT
+    iptables -t filter -A INPUT -i $int -p tcp --dport 22 -s 0.0.0.0 -j ACCEPT
+    iptables -t filter -A OUTPUT -o $int -p tcp --sport 22 -d 0.0.0.0 -j ACCEPT
+
+    # Libera trafego nas portas do Samba (135, 137, 138, 139 e 445)
+    sambaports="135,137,138,139,445"
+    iptables -t filter -A INPUT -s $lnet -p tcp -m multiport --dports $sambaports -j ACCEPT
+    iptables -t filter -A INPUT -s $lnet -p udp -m multiport --sports $sambaports -j ACCEPT
+    iptables -t filter -A OUTPUT -s $lnet -p tcp -m multiport --sports $sambaports -j ACCEPT
+    iptables -t filter -A OUTPUT -s $lnet -p udp -m multiport --sports $sambaports -j ACCEPT
+
+    # Permite portas para o funcionamento do samba-ad-dc
+    samba_ad_dc_tcp="53,88,135,139,389,445,464,636,1024:5000,49152:65535,3268,3269,5353"
+    samba_ad_dc_udp="53,88,137,138,389,5353"
+    iptables -A INPUT -s $lnet -p tcp -m multiport --dports $samba_ad_dc_tcp -j ACCEPT
+    iptables -A INPUT -s $lnet -p udp -m multiport --dports $samba_ad_dc_udp -j ACCEPT
+
+    # Permitor portas do DNS e HTTP para o servidor realizar
+    # atualizações e instalações de novos pacotes
+    iptables -A INPUT -d 192.168.15.254 -p tcp --sport 80 -j ACCEPT
+    iptables -A INPUT -d 192.168.15.254 -p tcp --sport 53 -j ACCEPT
+    iptables -A INPUT -d 192.168.15.254 -p udp --sport 53 -j ACCEPT
+
+    iptables -t filter -A INPUT -p tcp -m state --state ESTABLISHED,RELATED -j ACCEPT
+    iptables -t filter -A OUTPUT -p tcp -m state --state ESTABLISHED,RELATED -j ACCEPT
 }
 
 

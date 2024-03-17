@@ -26,7 +26,6 @@ local(){
         # Libera o ping (ICMP) na rede externa
         iptables -t filter -A INPUT -i $ext -p icmp --icmp-type 0 -j ACCEPT
         iptables -t filter -A OUTPUT -o $ext -p icmp --icmp-type 8 -j ACCEPT
-
         # Libera o ping (ICMP) na rede interna
         iptables -t filter -A INPUT -i $int -p icmp --icmp-type 0 -j ACCEPT
         iptables -t filter -A OUTPUT -o $int -p icmp --icmp-type 8 -j ACCEPT
