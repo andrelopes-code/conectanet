@@ -44,9 +44,17 @@ def monitorar_arquivo_log(nome_arquivo, full_file):
                 print(
 """\033[1;31m[DROPED]   \033[1;35m{} {} \033[m[\033[1;35m{}\033[0m] - - - - \033[1;32m{}\033[m{} - \
 \033[1;31m=={}=>\033[m - \033[1;32m{}\033[m{} - - \
-{} \033[1;33m{}\033[0m""".format(DIA, MES, HORA, result.get('SRC'), SPT, PROTO, result.get('DST'), DPT, sentido, iface), end="\n\n")
-
-            
+{} \033[1;33m{}\033[0m""".format(DIA,
+                                 MES,
+                                 HORA,
+                                 result.get('SRC'),
+                                 SPT,
+                                 PROTO,
+                                 result.get('DST'),
+                                 DPT,
+                                 sentido,
+                                 iface), end="\n\n")
+          
     except FileNotFoundError:
         print("O arquivo não foi encontrado.")
 
