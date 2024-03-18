@@ -5,7 +5,7 @@
 }
 
 html {
-  background-color: #f8f2ff;
+  background-color: #eeeeee;
   font-family: Helvetica, Arial, sans-serif;
 }
 
@@ -35,7 +35,7 @@ html {
 .body {
   font-size: 10px;
   color: #000;
-  background-color: #ebebeb;
+  background-color: #eeeeee;
   background-image: url();
 }
 
@@ -48,7 +48,7 @@ html {
 
 .info a:link,
 a:visited {
-  color: #e3e0e4;
+  color: #eeeeee;
   font-size: 10px;
   text-decoration: none;
 }
@@ -66,7 +66,7 @@ div.title > table {
 .title_c {
   font-size: 16px;
   color: #45289d;
-  background-color: #f3f3f3;
+  background-color: #eeeeee;
   text-align: center;
   padding-top: 20px;
   padding-bottom: 5px;
@@ -74,8 +74,8 @@ div.title > table {
 
 .title_l {
   font-size: 16px;
-  color: #966ccc;
-  background-color: #f3f3f3;
+  color: #45289d;
+  background-color: #eeeeee;
   text-align: left;
   padding-top: 20px;
   padding-bottom: 5px;
@@ -83,8 +83,8 @@ div.title > table {
 
 .title_r {
   font-size: 16px;
-  color: #966ccc;
-  background-color: #f3f3f3;
+  color: #45289d;
+  background-color: #eeeeee;
   text-align: right;
   padding-top: 20px;
   padding-bottom: 5px;
@@ -111,7 +111,7 @@ div.report > table {
 .header_l {
   font-size: 12px;
   color: #3d3d3d;
-  background-color: #ddc7ff;
+  background-color: #c9c4f9;
   text-align: left;
   border-right: 2px solid #66666632;
   border-bottom: 2px solid #66666632;
@@ -121,7 +121,7 @@ div.report > table {
 .header_r {
   font-size: 12px;
   color: #3d3d3d;
-  background-color: #ddc7ff;
+  background-color: #c9c4f9;
   text-align: right;
   border-right: 2px solid #66666632;
   border-bottom: 2px solid #66666632;
@@ -131,7 +131,7 @@ div.report > table {
 .header_c {
   font-size: 12px;
   color: #3d3d3d;
-  background-color: #ddc7ff;
+  background-color: #c9c4f9;
   text-align: center;
   border-right: 2px solid #66666632;
   border-bottom: 2px solid #66666632;
