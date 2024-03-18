@@ -1,20 +1,20 @@
 import re
 import sys
 
-PATTERN = re.compile(r"""
-(IN=(?P<in>\w*))                                  
-.*                                                
-(OUT=(?P<out>\w*))                              
-.*                                                
-(SRC=(?P<src>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}))  
-.*                                                
-(DST=(?P<dst>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}))  
-.*                                             
-(PROTO=(?P<proto>\w*))
-.*
-(SPT=(?P<sport>\d*))
-.*
-(DPT=(?P<dport>\d*))
+regex = re.compile(r"""
+(?:IN=(\S*))                                  
+|                                              
+(?:OUT=(\S*))                              
+|                                             
+(?:SRC=(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}))  
+|                                            
+(?:DST=(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}))  
+|                                            
+(?:PROTO=(\S*))
+|
+(?:SPT=(\d*))
+|
+(?:DPT=(>\d*))
 """, re.VERBOSE)
 
 
@@ -25,31 +25,26 @@ def monitorar_arquivo_log(nome_arquivo, full_file):
                 arquivo.seek(0, 2)
             while True:
                 linha = arquivo.readline()
-                if not linha or not "iptables-denied:" in linha:
+                if not linha or not "iptables" in linha:
                     continue
                 
-                match = PATTERN.search(linha)
+                DIA = linha[4:6]
+                MES = linha[0:3]
+                HORA = linha[7:15]
+
+                matches = re.findall(regex, linha)
+                result = {k: v for match in matches for k, v in zip(('IN', 'OUT', 'SRC', 'DST', 'PROTO', 'DPT', 'SPT'), match) if v}
+
+                sentido = "\033[1;36mINP ->\033[m" if result.get('IN') else "\033[1;31mOUT ->\033[m"
+                iface = result.get('IN') or result.get('OUT')
                 
-                if match:
-                    DIA = linha[4:6]
-                    MES = linha[0:3]
-                    HORA = linha[7:15]
-                    IN = PATTERN.search(linha).group('in')
-                    OUT = PATTERN.search(linha).group('out')
-                    SRC = PATTERN.search(linha).group('src')
-                    DST = PATTERN.search(linha).group('dst')
-                    PROTO = PATTERN.search(linha).group('proto')
-                    SPT = PATTERN.search(linha).group('sport')
-                    DPT = PATTERN.search(linha).group('dport')
-                else:
-                    continue
-                sentido = "\033[1;32mINP ->\033[m" if IN else "\033[1;31mOUT ->\033[m"
-                iface = IN or OUT
-                
+                SPT = " (\033[1;36m{}\033[0m)".format(result.get('SPT')) if result.get('SPT') else ""
+                DPT = " (\033[1;36m{}\033[0m)".format(result.get('DPT')) if result.get('DPT') else ""
+                PROTO = " \033[1;33m{}\033[1;31m ".format(result.get('PROTO')) if result.get('PROTO') else ""
                 print(
-"""\033[1;31m[DROPED]   \033[1;35m{} {} \033[m[\033[1;35m{}\033[0m] - - - - \033[1;32m{} \033[m(\033[1;36m{}\033[0m) - \
-\033[1;31m== \033[1;33m{}\033[1;31m =>\033[m - \033[1;32m{} \033[m(\033[1;36m{}\033[0m) - - \
-{} \033[1;33m{}\033[0m""".format(DIA, MES, HORA, SRC, SPT, PROTO, DST, DPT, sentido, iface))
+"""\033[1;31m[DROPED]   \033[1;35m{} {} \033[m[\033[1;35m{}\033[0m] - - - - \033[1;32m{}\033[m{} - \
+\033[1;31m=={}=>\033[m - \033[1;32m{}\033[m{} - - \
+{} \033[1;33m{}\033[0m""".format(DIA, MES, HORA, result.get('SRC'), SPT, PROTO, result.get('DST'), DPT, sentido, iface), end="\n\n")
 
             
     except FileNotFoundError:
