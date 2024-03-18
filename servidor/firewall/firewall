@@ -36,8 +36,8 @@ local(){
         iptables -t filter -A OUTPUT -o lo -j ACCEPT
 
     # Permitir tráfego ICMP de entrada e saída necessários para o funcionamento normal
-        iptables -A INPUT -p icmp --icmp-type echo-request -m limit --limit 1/s -j ACCEPT
-        iptables -A OUTPUT -p icmp --icmp-type echo-reply -m limit --limit 1/s -j ACCEPT
+        iptables -A INPUT -p icmp --icmp-type echo-request -m limit --limit 10/s -j ACCEPT
+        iptables -A OUTPUT -p icmp --icmp-type echo-reply -m limit --limit 10/s -j ACCEPT
 
     # Descartar tráfego ICMP de entrada e saída além das regras permitidas acima
         iptables -A INPUT -p icmp -j DROP
@@ -107,8 +107,8 @@ forward(){
         iptables -t filter -A FORWARD -o $ext -p icmp --icmp-type 8 -s $lnet -j ACCEPT
 
     # Permitir tráfego ICMP de encaminhamento necessários para o funcionamento normal
-        iptables -A FORWARD -p icmp --icmp-type echo-request -m limit --limit 1/s -j ACCEPT
-        iptables -A FORWARD -p icmp --icmp-type echo-reply -m limit --limit 1/s -j ACCEPT
+        iptables -A FORWARD -p icmp --icmp-type echo-request -m limit --limit 10/s -j ACCEPT
+        iptables -A FORWARD -p icmp --icmp-type echo-reply -m limit --limit 10/s -j ACCEPT
 
     # Descartar tráfego ICMP de encaminhamento além das regras permitidas acima
         iptables -A FORWARD -p icmp -j DROP
