@@ -2,10 +2,10 @@
 
 
 # Variaveis locais
-ext="eno1"              # Interface de rede externa
-int="enp2s0"            # Interface de rede interna
-lnet="192.168.0.0/24"   # Endereço da rede local
-server="192.168.0.254"  # Endereço do servidor                
+ext="eno1"                # Interface de rede externa
+int="enp2s0"              # Interface de rede interna
+lnet="192.168.0.0/24"     # endereço da rede local
+server="192.168.0.254"    # endereço do servidor
 
 
 #==  Funcoes para definicao de regras ======================================================#
@@ -14,54 +14,80 @@ server="192.168.0.254"  # Endereço do servidor
 local(){
     # Funcao para configuracao das regras de firewall para comunicacao local
 
-    # Permite trafego TCP e UDP de entrada e saida nas portas
-    # 80, 443, 53, 123 (HTTP, HTTPS, DNS, NTP)
-    iptables -t filter -A INPUT -i $ext -p tcp -m multiport --sports 80,443 -j ACCEPT
-    iptables -t filter -A INPUT -i $ext -p udp -m multiport --sports 53,123 -j ACCEPT
-    iptables -t filter -A OUTPUT -o $ext -p tcp -m multiport --dports 80,443 -j ACCEPT
-    iptables -t filter -A OUTPUT -o $ext -p udp -m multiport --dports 53,123 -j ACCEPT
+    # Permite trafego nas portas (80, 443, 53, 123)
+        iptables -t filter -A INPUT -i $ext -p tcp -m multiport --sports 80,443 -j ACCEPT
+        iptables -t filter -A INPUT -i $ext -p udp -m multiport --sports 53,123 -j ACCEPT
+        iptables -t filter -A OUTPUT -o $ext -p tcp -m multiport --dports 80,443 -j ACCEPT
+        iptables -t filter -A OUTPUT -o $ext -p udp -m multiport --dports 53,123 -j ACCEPT
+
+    # Permitir portas do DNS e HTTP para o servidor realizar
+        iptables -A INPUT -d $server -p tcp --sport 80 -j ACCEPT
+        iptables -A INPUT -d $server -p tcp --sport 53 -j ACCEPT
+        iptables -A INPUT -d $server -p udp --sport 53 -j ACCEPT
+
+    # Libera o trafego DHCP na rede externa
+        iptables -t filter -A INPUT -i $ext -p udp --dport 68 -j ACCEPT
+        iptables -t filter -A OUTPUT -o $ext -p udp --sport 68 -j ACCEPT
+        iptables -t filter -A INPUT -i $ext -p udp --dport 67 -j ACCEPT
+        iptables -t filter -A OUTPUT -o $ext -p udp --sport 67 -j ACCEPT
 
     # Libera todo o trafego da lo
-    iptables -t filter -A INPUT -i lo -j ACCEPT
-    iptables -t filter -A OUTPUT -o lo -j ACCEPT
+        iptables -t filter -A INPUT -i lo -j ACCEPT
+        iptables -t filter -A OUTPUT -o lo -j ACCEPT
 
-    # Libera o ping (ICMP) na rede externa
-    iptables -t filter -A INPUT -i $ext -p icmp --icmp-type 0 -j ACCEPT
-    iptables -t filter -A OUTPUT -o $ext -p icmp --icmp-type 8 -j ACCEPT
+    # Permitir tráfego ICMP de entrada e saída necessários para o funcionamento normal
+        iptables -A INPUT -p icmp --icmp-type echo-request -m limit --limit 1/s -j ACCEPT
+        iptables -A OUTPUT -p icmp --icmp-type echo-reply -m limit --limit 1/s -j ACCEPT
 
-    # Libera o ping (ICMP) na rede interna
-    iptables -t filter -A INPUT -i $int -p icmp --icmp-type 0 -j ACCEPT
-    iptables -t filter -A OUTPUT -o $int -p icmp --icmp-type 8 -j ACCEPT
+    # Descartar tráfego ICMP de entrada e saída além das regras permitidas acima
+        iptables -A INPUT -p icmp -j DROP
+        iptables -A OUTPUT -p icmp -j DROP
 
     # Libera o trafego TCP do Squid (3128)
-    iptables -t filter -A INPUT -i $int -p tcp --dport 3128 -j ACCEPT
-    iptables -t filter -A OUTPUT -o $int -p tcp --sport 3128 -j ACCEPT
+        iptables -t filter -A INPUT -i $int -p tcp --dport 3128 -j ACCEPT
+        iptables -t filter -A OUTPUT -o $int -p tcp --sport 3128 -j ACCEPT
 
-    # libera a porta SSH (22) para um IP confiavel
-    iptables -t filter -A INPUT -p tcp --dport 22 -s 0.0.0.0 -j ACCEPT
-    iptables -t filter -A OUTPUT -p tcp --sport 22 -d 0.0.0.0 -j ACCEPT
+    # libera a porta SSH (22)
+        iptables -t filter -A INPUT -p tcp --dport 22 -j ACCEPT
+        iptables -t filter -A OUTPUT -p tcp --sport 22 -j ACCEPT
 
     # Libera trafego nas portas do Samba (135, 137, 138, 139 e 445)
-    sambaports="135,137,138,139,445"
-    iptables -t filter -A INPUT -s $lnet -p tcp -m multiport --dports $sambaports -j ACCEPT
-    iptables -t filter -A INPUT -s $lnet -p udp -m multiport --sports $sambaports -j ACCEPT
-    iptables -t filter -A OUTPUT -s $lnet -p tcp -m multiport --sports $sambaports -j ACCEPT
-    iptables -t filter -A OUTPUT -s $lnet -p udp -m multiport --sports $sambaports -j ACCEPT
+        sambaports="135,137,138,139,445"
+        iptables -t filter -A INPUT -s $lnet -p tcp -m multiport --dports $sambaports -j ACCEPT
+        iptables -t filter -A INPUT -s $lnet -p udp -m multiport --sports $sambaports -j ACCEPT
+        iptables -t filter -A OUTPUT -s $lnet -p tcp -m multiport --sports $sambaports -j ACCEPT
+        iptables -t filter -A OUTPUT -s $lnet -p udp -m multiport --sports $sambaports -j ACCEPT
 
     # Permite portas para o funcionamento do samba-ad-dc
-    samba_ad_dc_tcp="53,88,135,139,389,445,464,636,1024:5000,49152:65535,3268,3269,5353"
-    samba_ad_dc_udp="53,88,137,138,389,5353"
-    iptables -A INPUT -s $lnet -p tcp -m multiport --dports $samba_ad_dc_tcp -j ACCEPT
-    iptables -A INPUT -s $lnet -p udp -m multiport --dports $samba_ad_dc_udp -j ACCEPT
+        samba_ad_dc_tcp="53,88,135,139,389,445,464,636,1024:5000,49152:65535,3268,3269,5353"
+        samba_ad_dc_udp="53,88,137,138,389,5353"
+        iptables -A INPUT -s $lnet -p tcp -m multiport --dports $samba_ad_dc_tcp -j ACCEPT
+        iptables -A INPUT -s $lnet -p udp -m multiport --dports $samba_ad_dc_udp -j ACCEPT
 
-    # Permitor portas do DNS e HTTP para o servidor realizar
-    # atualizações e instalações de novos pacotes
-    iptables -A INPUT -d $server -p tcp --sport 80 -j ACCEPT
-    iptables -A INPUT -d $server -p tcp --sport 53 -j ACCEPT
-    iptables -A INPUT -d $server -p udp --sport 53 -j ACCEPT
+        iptables -t filter -A OUTPUT -p udp --sport 389 -j ACCEPT
 
-    iptables -t filter -A INPUT -p tcp -m state --state ESTABLISHED,RELATED -j ACCEPT
-    iptables -t filter -A OUTPUT -p tcp -m state --state ESTABLISHED,RELATED -j ACCEPT
+    # Multicast e DNS (5353, 53)
+        iptables -t filter -A INPUT -p tcp --dport 5353 -j ACCEPT
+        iptables -t filter -A INPUT -p udp --dport 5353 -j ACCEPT
+
+        iptables -A INPUT -i $ext -d 224.0.0.0/4 -j ACCEPT
+        iptables -A OUTPUT -o $ext -d 224.0.0.0/4 -j ACCEPT
+
+        iptables -A INPUT -i $int -p udp --dport 53 -j ACCEPT
+        iptables -A OUTPUT -o $int -p udp --sport 53 -j ACCEPT
+
+    #Libera o trafego DHCP (67, 68)
+        iptables -t filter -A INPUT -i $int -p udp --dport 68 -j ACCEPT
+        iptables -t filter -A OUTPUT -o $int -p udp --sport 68 -j ACCEPT
+        iptables -t filter -A INPUT -i $int -p udp --dport 67 -j ACCEPT
+        iptables -t filter -A OUTPUT -o $int -p udp --sport 67 -j ACCEPT
+
+    # Libera o NTP (123)
+        iptables -t filter -A INPUT -p udp --dport 123 -j ACCEPT
+
+    # Regras para permitir conexões relacionadas e estabelecidas
+        iptables -t filter -A INPUT -p tcp -m state --state ESTABLISHED,RELATED -j ACCEPT
+        iptables -t filter -A OUTPUT -p tcp -m state --state ESTABLISHED,RELATED -j ACCEPT
 }
 
 
@@ -69,16 +95,23 @@ forward(){
     # Funcao para encaminhamento de trafego entre WAN e LAN
 
     # Libera o trafego entre a INTERNET e a REDE LOCAL
-    iptables -t filter -A FORWARD -i $ext -p tcp -m multiport --sports 80,443 -d $lnet -j ACCEPT
-    iptables -t filter -A FORWARD -i $ext -p udp -m multiport --sports 53,123 -d $lnet -j ACCEPT
-    iptables -t filter -A FORWARD -i $int -p tcp -m multiport --dports 80,443 -s $lnet -j ACCEPT
-    iptables -t filter -A FORWARD -i $int -p udp -m multiport --dports 53,123 -s $lnet -j ACCEPT
+        iptables -t filter -A FORWARD -i $ext -p tcp -m multiport --sports 80,443 -d $lnet -j ACCEPT
+        iptables -t filter -A FORWARD -i $ext -p udp -m multiport --sports 53,123 -d $lnet -j ACCEPT
+        iptables -t filter -A FORWARD -i $int -p tcp -m multiport --dports 80,443 -s $lnet -j ACCEPT
+        iptables -t filter -A FORWARD -i $int -p udp -m multiport --dports 53,123 -s $lnet -j ACCEPT
 
     # Libera o ping entre a INTERNET e a REDE LOCAL
-    iptables -t filter -A FORWARD -i $int -p icmp --icmp-type 8 -s $lnet -j ACCEPT
-    iptables -t filter -A FORWARD -o $int -p icmp --icmp-type 0 -d $lnet -j ACCEPT
-    iptables -t filter -A FORWARD -i $ext -p icmp --icmp-type 0 -d $lnet -j ACCEPT
-    iptables -t filter -A FORWARD -o $ext -p icmp --icmp-type 8 -s $lnet -j ACCEPT
+        iptables -t filter -A FORWARD -i $int -p icmp --icmp-type 8 -s $lnet -j ACCEPT
+        iptables -t filter -A FORWARD -o $int -p icmp --icmp-type 0 -d $lnet -j ACCEPT
+        iptables -t filter -A FORWARD -i $ext -p icmp --icmp-type 0 -d $lnet -j ACCEPT
+        iptables -t filter -A FORWARD -o $ext -p icmp --icmp-type 8 -s $lnet -j ACCEPT
+
+    # Permitir tráfego ICMP de encaminhamento necessários para o funcionamento normal
+        iptables -A FORWARD -p icmp --icmp-type echo-request -m limit --limit 1/s -j ACCEPT
+        iptables -A FORWARD -p icmp --icmp-type echo-reply -m limit --limit 1/s -j ACCEPT
+
+    # Descartar tráfego ICMP de encaminhamento além das regras permitidas acima
+        iptables -A FORWARD -p icmp -j DROP
 }
 
 
@@ -106,11 +139,14 @@ default() {
     iptables -t filter -A INPUT -j LOGGING
     iptables -t filter -A OUTPUT -j LOGGING
     iptables -t filter -A FORWARD -j LOGGING
+
+    iptables -P INPUT DROP
+    iptables -P OUTPUT DROP
+    iptables -P FORWARD DROP
 }
 
 iniciar(){
     # Funcao para iniciar o firewall
-
     local
     forward
     internet
@@ -120,11 +156,11 @@ iniciar(){
 
 parar(){
     # Funcao para parar o firewall
-
     iptables -t filter -P INPUT ACCEPT
     iptables -t filter -P OUTPUT ACCEPT
     iptables -t filter -P FORWARD ACCEPT
     iptables -t filter -F
+    iptables -F
     iptables -X
 }
 
