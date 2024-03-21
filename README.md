@@ -70,15 +70,15 @@ iface enp2s0 inet static
         netmask 255.255.255.0
         network 192.168.0.0
         broadcast 192.168.0.255
-        dns-nameservers 192.168.0.254 8.8.8.8
+        dns-nameservers 192.168.0.254 8.8.8.8 1.1.1.1
         dns-search conectanet.lan
         dns-domain conectanet.lan
 ```
 
 #### Reinicie a interface de rede
 ```bash
-sudo ifdown enp2s0
 sudo ifup enp2s0
+sudo systemctl restart networking
 ```
 
 <br>
@@ -87,7 +87,6 @@ sudo ifup enp2s0
 ```bash
 sudo systemctl disable --now systemd-resolved
 sudo unlink /etc/resolv.conf
-sudo touch /etc/resolv.conf
 sudo vi /etc/resolv.conf
 ```
 
@@ -116,134 +115,7 @@ sudo chattr +i /etc/resolv.conf
 
 #### conteúdo do arquivo `firewall`:
 ```bash
-#!/bin/bash
 
-# Variaveis locais
-ext="eno1"              # Interface de rede externa
-int="enp2s0"            # Interface de rede interna
-lnet="192.168.0.0/24"   # Endereço da rede local
-server="192.168.0.254"  # Endereço do servidor                
-
-#  Funcoes para definicao de regras
-
-local(){
-    # Funcao para configuracao das regras de firewall para comunicacao local
-
-    # Permite trafego TCP e UDP de entrada e saida nas portas
-    # 80, 443, 53, 123 (HTTP, HTTPS, DNS, NTP)
-    iptables -t filter -A INPUT -i $ext -p tcp -m multiport --sports 80,443 -j ACCEPT
-    iptables -t filter -A INPUT -i $ext -p udp -m multiport --sports 53,123 -j ACCEPT
-    iptables -t filter -A OUTPUT -o $ext -p tcp -m multiport --dports 80,443 -j ACCEPT
-    iptables -t filter -A OUTPUT -o $ext -p udp -m multiport --dports 53,123 -j ACCEPT
-
-    # Libera todo o trafego da lo
-    iptables -t filter -A INPUT -i lo -j ACCEPT
-    iptables -t filter -A OUTPUT -o lo -j ACCEPT
-
-    # Libera o ping (ICMP) na rede externa
-    iptables -t filter -A INPUT -i $ext -p icmp --icmp-type 0 -j ACCEPT
-    iptables -t filter -A OUTPUT -o $ext -p icmp --icmp-type 8 -j ACCEPT
-
-    # Libera o ping (ICMP) na rede interna
-    iptables -t filter -A INPUT -i $int -p icmp --icmp-type 0 -j ACCEPT
-    iptables -t filter -A OUTPUT -o $int -p icmp --icmp-type 8 -j ACCEPT
-
-    # Libera o trafego TCP do Squid (3128)
-    iptables -t filter -A INPUT -i $int -p tcp --dport 3128 -j ACCEPT
-    iptables -t filter -A OUTPUT -o $int -p tcp --sport 3128 -j ACCEPT
-
-    # libera a porta SSH (22) para um IP confiavel
-    iptables -t filter -A INPUT -p tcp --dport 22 -s 0.0.0.0 -j ACCEPT
-    iptables -t filter -A OUTPUT -p tcp --sport 22 -d 0.0.0.0 -j ACCEPT
-
-    # Libera trafego nas portas do Samba (135, 137, 138, 139 e 445)
-    sambaports="135,137,138,139,445"
-    iptables -t filter -A INPUT -s $lnet -p tcp -m multiport --dports $sambaports -j ACCEPT
-    iptables -t filter -A INPUT -s $lnet -p udp -m multiport --sports $sambaports -j ACCEPT
-    iptables -t filter -A OUTPUT -s $lnet -p tcp -m multiport --sports $sambaports -j ACCEPT
-    iptables -t filter -A OUTPUT -s $lnet -p udp -m multiport --sports $sambaports -j ACCEPT
-
-    # Permite portas para o funcionamento do samba-ad-dc
-    samba_ad_dc_tcp="53,88,135,139,389,445,464,636,1024:5000,49152:65535,3268,3269,5353"
-    samba_ad_dc_udp="53,88,137,138,389,5353"
-    iptables -A INPUT -s $lnet -p tcp -m multiport --dports $samba_ad_dc_tcp -j ACCEPT
-    iptables -A INPUT -s $lnet -p udp -m multiport --dports $samba_ad_dc_udp -j ACCEPT
-
-    # Permitor portas do DNS e HTTP para o servidor 
-    iptables -A INPUT -d $server -p tcp --sport 80 -j ACCEPT
-    iptables -A INPUT -d $server -p tcp --sport 53 -j ACCEPT
-    iptables -A INPUT -d $server -p udp --sport 53 -j ACCEPT
-    iptables -t filter -A INPUT -p tcp -m state --state ESTABLISHED,RELATED -j ACCEPT
-    iptables -t filter -A OUTPUT -p tcp -m state --state ESTABLISHED,RELATED -j ACCEPT
-}
-
-forward(){
-    # Funcao para encaminhamento de trafego entre WAN e LAN
-
-    # Libera o trafego entre a INTERNET e a REDE LOCAL
-    iptables -t filter -A FORWARD -i $ext -p tcp -m multiport --sports 80,443 -d $lnet -j ACCEPT
-    iptables -t filter -A FORWARD -i $ext -p udp -m multiport --sports 53,123 -d $lnet -j ACCEPT
-    iptables -t filter -A FORWARD -i $int -p tcp -m multiport --dports 80,443 -s $lnet -j ACCEPT
-    iptables -t filter -A FORWARD -i $int -p udp -m multiport --dports 53,123 -s $lnet -j ACCEPT
-    # Libera o ping entre a INTERNET e a REDE LOCAL
-    iptables -t filter -A FORWARD -i $int -p icmp --icmp-type 8 -s $lnet -j ACCEPT
-    iptables -t filter -A FORWARD -o $int -p icmp --icmp-type 0 -d $lnet -j ACCEPT
-    iptables -t filter -A FORWARD -i $ext -p icmp --icmp-type 0 -d $lnet -j ACCEPT
-    iptables -t filter -A FORWARD -o $ext -p icmp --icmp-type 8 -s $lnet -j ACCEPT
-}
-
-internet(){
-    # Funcao para habilitar o compartilhamento da internet entre as redes
-
-    # Habilita o encaminhamento de IP
-    sysctl -w net.ipv4.ip_forward=1
-    # Configura NAT para o trafego da LAN para a Internet
-    iptables -t nat -A POSTROUTING -s $lnet -o $ext -j MASQUERADE
-    # Direcionar navegacao na porta HTTP (80) para a porta do proxy/squid (3128)
-    iptables -t nat -A PREROUTING -i $int -p tcp --dport 80 -j REDIRECT --to-port 3128
-}
-
-# Funcoes de controle  
-
-default() {
-    # Define a chain de LOGGING que loga e bloqueia os pacotes
-    iptables -N LOGGING
-    iptables -A LOGGING -m limit --limit 5/min -j LOG --log-prefix "iptables-denied: " --log-level 7
-    iptables -A LOGGING -j DROP
-    # Redireciona os pacotes sem regra definida para LOGGING
-    iptables -t filter -A INPUT -j LOGGING
-    iptables -t filter -A OUTPUT -j LOGGING
-    iptables -t filter -A FORWARD -j LOGGING
-}
-
-iniciar(){
-    # Funcao para iniciar o firewall
-    local
-    forward
-    internet
-    default
-}
-
-parar(){
-    # Funcao para parar o firewall
-    iptables -t filter -P INPUT ACCEPT
-    iptables -t filter -P OUTPUT ACCEPT
-    iptables -t filter -P FORWARD ACCEPT
-    iptables -t filter -F
-    iptables -X
-}
-
-#  Script para controle do firewall
-
-case $1 in
-    start|Start|START)iniciar;;
-    stop|Stop|STOP)parar;;
-    restart|Restart|RESTART)parar;iniciar;;
-    listar|list)iptables -t filter -nvL;;
-    vi|conf)sudo vi /usr/local/sbin/firewall;;
-    *)echo "usage:
-    firewall [start|stop|restart|list|vi]";;
-esac
 ```
 
 #### Tornar o script um executavel
@@ -521,10 +393,7 @@ external_css_file http://192.168.0.254/squid-reports/style.css
 # Sufixo para download
 download_suffix "zip,arj,bzip,gz,ace,doc,iso,adt,bin,cab,com,dot,drv$,lha,lzh,mdb,mso,ppt,rtf,src,shs,sys,exe,dll,mp3,avi,mpg,mpeg"
 ```
-#### Arquivo de estilo sarg
-```css
-*{margin:0;padding:0;box-sizing:border-box}html{background-color:#f8f2ff;font-family:Helvetica,Arial,sans-serif}.logo{font-size:0;color:#966ccc;text-align:center;vertical-align:middle;border:none;padding:40px;margin-bottom:5px}.logo th{padding:0}.logo img{vertical-align:middle;padding:0;border:0 none;width:300px!important;height:80px!important;filter:hue-rotate(35deg)}.body{font-size:10px;color:#000;background-color:#ebebeb;background-image:url()}.info{font-size:10px;text-align:center;margin-top:1em;margin-bottom:1em}.info a:link,a:visited{color:#e3e0e4;font-size:10px;text-decoration:none}.title{width:100%;text-align:center;margin-bottom:1em}div.title > table{margin:auto}.title_c{font-size:16px;color:#45289d;background-color:#f3f3f3;text-align:center;padding-top:20px;padding-bottom:5px}.title_l{font-size:16px;color:#966ccc;background-color:#f3f3f3;text-align:left;padding-top:20px;padding-bottom:5px}.title_r{font-size:16px;color:#966ccc;background-color:#f3f3f3;text-align:right;padding-top:20px;padding-bottom:5px}.index{width:100%;text-align:center}div.index > table{margin:auto}.report{width:100%;text-align:center}div.report > table{margin:auto}.header_l{font-size:12px;color:#3d3d3d;background-color:#ddc7ff;text-align:left;border-right:2px solid #66666632;border-bottom:2px solid #66666632;padding:2px 8px}.header_r{font-size:12px;color:#3d3d3d;background-color:#ddc7ff;text-align:right;border-right:2px solid #66666632;border-bottom:2px solid #66666632;padding:2px 8px}.header_c{font-size:12px;color:#3d3d3d;background-color:#ddc7ff;text-align:center;border-right:2px solid #66666632;border-bottom:2px solid #66666632;padding:2px 8px}.data{color:#000;font-size:12px;background-color:#e6e6fa;text-align:right;border-right:2px solid #695acd4a;border-bottom:2px solid #695acd4a;padding:2px 8px}.data a:link,a:visited{color:#732dff;font-size:12px;background-color:#e6e6fa;text-align:right;text-decoration:none;padding:2px 8px}.data2{color:#000;font-size:12px;background-color:#e6e6fa;text-align:left;border-right:2px solid #695acd4a;border-bottom:2px solid #695acd4a;padding:2px 8px}.data2 a:link,a:visited{color:#732dff;font-size:12px;text-align:left;background-color:#e6e6fa;text-decoration:none}.data3{color:#000;font-size:12px;background-color:#e6e6fa;text-align:center;border-right:1px solid #6139f0;border-bottom:1px solid #6139f0;padding:22px}.data3 a:link,a:visited{color:#732dff;font-size:12px;text-align:center;background-color:#e6e6fa;text-decoration:none}.text{color:#000;font-size:12px;background-color:#e6e6fa;text-align:right}.more{font-style:italic;color:#777}.link{font-size:12px;color:#732dff}.link a:link,a:visited{font-size:12px;color:#6139f0;text-decoration:none}a > img{border:none}.warn{margin:.5em}.warn > span{padding:.5em;border:2px solid #000;background-color:orange;font-size:14px}
-```
+
 <br><br>
 
 ## DHCP
@@ -538,7 +407,7 @@ sudo apt install isc-dhcp-server
 
 ### Configurar o arquivo /etc/dhcp/dhcpd.conf
 conteúdo do arquivo [adicionar ao fim do arquivo]:
-```toml
+```bash
 # Configuração do serviço DHCP.
 authoritative;
 subnet 192.168.0.0 netmask 255.255.255.0 {
@@ -558,7 +427,7 @@ subnet 192.168.0.0 netmask 255.255.255.0 {
 sudo vi /etc/default/isc-dhcp-server
 ```
 conteúdo do arquivo:
-```toml
+```bash
 INTERFACES="enp2s0"
 ```
 
@@ -595,8 +464,8 @@ srv-cnet.conectanet.lan
 ```bash
 sudo systemctl disable --now nmbd smbd winbind
 
-sudo systemctl unmask samba-ad-dc
 sudo systemctl enable samba-ad-dc
+sudo systemctl unmask samba-ad-dc
 ```
 
 <br>
@@ -623,10 +492,15 @@ sudo samba-tool domain provision --use-rfc2307 --use-xattr=yes --interactive
 # Campo DNS FORWARDER
     8.8.8.8
 # Campo ADMINISTRATOR PASSWORD
-    AdmCnet@2023.2
+    AdmCnet@2024
 ```
 
 <br>
+
+### Substituir o arquivo krb5.conf
+```bash
+cp /var/lib/samba/private/krb5.conf /etc/
+```
 
 ### Iniciar o `samba-ad-dc` e reiniciar o servidor
 ```bash

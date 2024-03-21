@@ -30,13 +30,13 @@ local(){
         iptables -A INPUT -d $server -p udp --sport 53 -j ACCEPT
 
     # Multicast (5353)
-        iptables -A INPUT -m pkttype --pkt-type multicast -j ACCEPT
-
         iptables -A INPUT -p tcp --dport 5353 -j ACCEPT
         iptables -A INPUT -p udp --dport 5353 -j ACCEPT
 
         iptables -A INPUT -i $ext -d 224.0.0.0/4 -j ACCEPT
         iptables -A OUTPUT -o $ext -d 224.0.0.0/4 -j ACCEPT
+
+        iptables -A INPUT -m pkttype --pkt-type multicast -j ACCEPT
 
     # Libera o trafego DHCP
         iptables -A INPUT -p udp --dport 68 -j ACCEPT
@@ -55,7 +55,7 @@ local(){
         iptables -A INPUT -i $int -p tcp --dport 3128 -j ACCEPT
         iptables -A OUTPUT -o $int -p tcp --sport 3128 -j ACCEPT
 
-    # libera a porta SSH (22)
+    # libera total acesso a porta SSH (22)
         iptables -A INPUT -p tcp --dport 22 -j ACCEPT
         iptables -A OUTPUT -p tcp --sport 22 -j ACCEPT
 

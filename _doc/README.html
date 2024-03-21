@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+<title>ConectaNet</title>
+<style>
+.hljs-comment,
+.hljs-quote {
+	color: #94989c;
+}
+.hljs-strong {
+	font-weight: bold;
+}
+</style>
+<link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+<h1 id="conectanet">ConectaNet</h1>
+<hr>
+<br>
+<br>
+<h2 id="configura%C3%A7%C3%A3o-b%C3%A1sica">Configuração Básica</h2>
+
+<p>Este documento fornece uma visão geral das configurações e serviços implementados no servidor, incluindo firewall, proxy, DHCP e Active Directory. Esperamos que esta documentação seja útil para administradores de sistemas e equipe de suporte de TI na gestão eficaz do ambiente de servidores da ConectaNet.</p>
+
+<h3 id="informa%C3%A7%C3%B5es-da-m%C3%A1quina">Informações da Máquina</h3>
+<ul>
+<li><strong>Nome da máquina:</strong>      srv-cnet</li>
+<li><strong>Sistema operacional:</strong>  ubuntu server 16.04 LTS</li>
+<li><strong>Nome de usuário:</strong>      conectanet</li>
+<li><strong>Senha:</strong>                ConectaNet@2023.2</li>
+</ul>
+<h3 id="configura%C3%A7%C3%A3o-de-rede">Configuração de Rede</h3>
+<ul>
+<li><strong>Endereço da rede:</strong>     192.168.0.0/24</li>
+<li><strong>Endereço do servidor:</strong> 192.168.0.254</li>
+<li><strong>Interfaces de rede:</strong>   eno1, enp2s0</li>
+<li><strong>Domínio:</strong>              conectanet.lan</li>
+</ul>
+<h3 id="servi%C3%A7os-e-aplicativos-instalados">Serviços e Aplicativos Instalados</h3>
+<ul>
+<li><strong>Firewall:</strong>             Utilizamos o iptables para garantir a segurança do servidor e controlar o tráfego de rede.</li>
+<li><strong>Proxy:</strong>                O servidor squid atua como proxy, melhorando o desempenho e a segurança das conexões à internet.</li>
+<li><strong>DHCP:</strong>                 Utilizamos o isc-dhcp-server para gerenciar a atribuição dinâmica de endereços IP na nossa rede local.</li>
+<li><strong>AD:</strong>                   Configuramos o samba-ad-dc para autenticação centralizada e gerenciamento de usuários.</li>
+</ul>
+<br>
+<h3 id="atualiza%C3%A7%C3%A3o-dos-pacotes-do-sistema">Atualização dos pacotes do sistema</h3>
+<p>Para garantir que o sistema esteja atualizado, execute os seguintes comandos:</p>
+<pre class="hljs"><code><div>sudo apt update
+sudo apt upgrade -y
+</div></code></pre>
+<br>
+<h3 id="configura%C3%A7%C3%A3o-do-arquivo-etchosts">Configuração do arquivo <code>/etc/hosts</code></h3>
+<p>Edite o arquivo <code>/etc/hosts</code> com o seguinte conteúdo:</p>
+<pre class="hljs"><code><div>sudo vi /etc/hosts
+</div></code></pre>
+<h4 id="conte%C3%BAdo-do-arquivo">Conteúdo do arquivo:</h4>
+<pre class="hljs"><code><div>127.0.0.1       localhost
+192.168.0.254   srv-cnet.conectanet.lan srv-cnet
+</div></code></pre>
+<br>
+<h3 id="configura%C3%A7%C3%A3o-das-interfaces-de-rede">Configuração das interfaces de rede</h3>
+<p>Edite o arquivo <code>/etc/network/interfaces</code> com o seguinte conteúdo:</p>
+<pre class="hljs"><code><div>sudo vi /etc/network/interfaces
+</div></code></pre>
+<h4 id="conte%C3%BAdo-do-arquivo">Conteúdo do arquivo:</h4>
+<pre class="hljs"><code><div><span class="hljs-comment"># Interface de rede externa</span>
+auto eno1
+iface eno1 inet dhcp
+
+<span class="hljs-comment"># Interface de rede interna</span>
+auto enp2s0
+iface enp2s0 inet static
+        address 192.168.0.254
+        netmask 255.255.255.0
+        network 192.168.0.0
+        broadcast 192.168.0.255
+        dns-nameservers 192.168.0.254 8.8.8.8 1.1.1.1
+        dns-search conectanet.lan
+        dns-domain conectanet.lan
+</div></code></pre>
+<h4 id="reinicie-a-interface-de-rede">Reinicie a interface de rede</h4>
+<pre class="hljs"><code><div>sudo ifup enp2s0
+sudo systemctl restart networking
+</div></code></pre>
+<br>
+<h3 id="configura%C3%A7%C3%A3o-manual-de-resolu%C3%A7%C3%A3o-de-dns">Configuração manual de resolução de DNS</h3>
+<pre class="hljs"><code><div>sudo systemctl <span class="hljs-built_in">disable</span> --now systemd-resolved
+sudo unlink /etc/resolv.conf
+sudo vi /etc/resolv.conf
+</div></code></pre>
+<h4 id="conte%C3%BAdo-do-arquivo">Conteúdo do arquivo:</h4>
+<pre class="hljs"><code><div><span class="hljs-comment"># Endereço do controlador de domínio Samba</span>
+nameserver 192.168.0.254
+<span class="hljs-comment"># Endereço de fallback</span>
+nameserver 8.8.8.8
+<span class="hljs-comment"># Domínio de pesquisa para resolução de nomes</span>
+search conectanet.lan
+</div></code></pre>
+<h4 id="adicione-o-atributo-de-imutabilidade">Adicione o atributo de imutabilidade:</h4>
+<pre class="hljs"><code><div>sudo chattr +i /etc/resolv.conf
+</div></code></pre>
+<p><br><br></p>
+<h2 id="firewall-iptables">Firewall Iptables</h2>
+<h3 id="arquivo-de-script-das-regras-do-firewall-iptables">Arquivo de script das regras do firewall (Iptables)</h3>
+<h4 id="conte%C3%BAdo-do-arquivo-firewall">conteúdo do arquivo <code>firewall</code>:</h4>
+<pre class="hljs"><code><div>
+</div></code></pre>
+<h4 id="tornar-o-script-um-executavel">Tornar o script um executavel</h4>
+<pre class="hljs"><code><div>sudo chmod +x firewall
+</div></code></pre>
+<h4 id="mover-o-script-para-uma-pasta-do-path">Mover o script para uma pasta do $PATH</h4>
+<pre class="hljs"><code><div>sudo mv firewall /usr/<span class="hljs-built_in">local</span>/sbin
+</div></code></pre>
+<h4 id="criar-o-arquivo-de-servi%C3%A7o-para-inicializa%C3%A7%C3%A3o-autom%C3%A1tica">Criar o arquivo de serviço para inicialização automática</h4>
+<pre class="hljs"><code><div>sudo vi /lib/systemd/system/firewall.service
+</div></code></pre>
+<h4 id="conte%C3%BAdo-do-arquivo">conteúdo do arquivo:</h4>
+<pre class="hljs"><code><div>[Unit]
+Description=Inicializa o script firewall automaticamente.
+After=network.target
+
+[Install]
+WantedBy=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/<span class="hljs-built_in">local</span>/sbin/firewall start
+ExecStop=/usr/<span class="hljs-built_in">local</span>/sbin/firewall stop
+RemainAfterExit=<span class="hljs-literal">true</span>
+KillMode=process
+</div></code></pre>
+<h4 id="recarregar-daemons-do-sistema">Recarregar daemons do sistema</h4>
+<pre class="hljs"><code><div>sudo systemctl daemon-reload
+</div></code></pre>
+<h4 id="ativar-o-servi%C3%A7o-do-firewall">Ativar o serviço do firewall</h4>
+<pre class="hljs"><code><div>sudo systemctl <span class="hljs-built_in">enable</span> firewall.service
+</div></code></pre>
+<p><br><br></p>
+<h2 id="proxy-squid">Proxy Squid</h2>
+<h3 id="instalar-o-squid3-e-apache2">Instalar o <code>squid3</code> e <code>apache2</code></h3>
+<pre class="hljs"><code><div>sudo apt install squid3 apache2
+</div></code></pre>
+<br>
+<h3 id="configura%C3%A7%C3%A3o-do-squid">Configuração do <code>squid</code></h3>
+<pre class="hljs"><code><div>sudo vi /etc/squid/squid.conf
+</div></code></pre>
+<h4 id="conte%C3%BAdo-do-arquivo">conteúdo do arquivo:</h4>
+<pre class="hljs"><code><div><span class="hljs-comment">#==  ACL's padrao  ==========================================================#</span>
+acl SSL_ports port 443 563 873                                                       
+acl Safe_ports port 80 21 443 70 210 280 488 445 139 591 777 8080 3128               
+acl Safe_ports port 1025-65535
+acl CONNECT method CONNECT
+
+<span class="hljs-comment">#============================================================================#</span>
+
+<span class="hljs-comment"># Diretorio de erros PT|BR</span>
+error_directory /usr/share/squid/errors/pt-br
+access_log /var/<span class="hljs-built_in">log</span>/squid/access.log
+
+<span class="hljs-comment"># Configuracao de cache de memoria de disco</span>
+cache_mem 2500 MB
+maximum_object_size_in_memory 1 MB
+cache_log /var/<span class="hljs-built_in">log</span>/squid/cache.log
+
+<span class="hljs-comment"># Definicoes de cache no disco</span>
+maximum_object_size 25 MB
+maximum_object_size 1 KB
+cache_dir ufs /etc/squid/cache 15360 16 128
+
+<span class="hljs-comment"># Substituicao do cache</span>
+cache_swap_low 80
+cache_swap_high 90
+
+<span class="hljs-comment"># Sarg</span>
+acl sarg dst 192.168.0.254
+http_access allow sarg
+
+<span class="hljs-comment">#==  ACL's  =================================================================#</span>
+
+acl localnet src 192.168.0.0/24
+acl negados url_regex -i <span class="hljs-string">"/etc/squid/files/negados.acl"</span>
+
+<span class="hljs-comment">#==  DEFAULT HTTP-ACCESS  ===================================================#</span>
+
+http_access deny !Safe_ports
+http_access deny CONNECT !SSL_ports
+http_access allow localhost manager
+http_access deny manager
+http_access allow localhost
+
+<span class="hljs-comment">#==  HTTP-ACCESS  ===========================================================#</span>
+
+<span class="hljs-comment"># Permite conexão da rede local, menos para os dominios proibidos</span>
+http_access allow localnet !negados
+
+<span class="hljs-comment">#==  DENY ALL  ==============================================================#</span>
+
+http_access deny all
+
+visible_hostname proxy_server
+http_port 192.168.0.254:3128
+
+<span class="hljs-comment">#============================================================================#</span>
+
+coredump_dir /var/spool/squid
+refresh_pattern ^ftp:           1440    20%     10080
+refresh_pattern ^gopher:        1440    0%      1440
+refresh_pattern -i (/cgi-bin/|\?) 0     0%      0
+refresh_pattern (Release|Packages(.gz)*)$      0       20%     2880
+refresh_pattern .               0       20%     4320
+</div></code></pre>
+<h4 id="pasta-de-cache-do-squid">Pasta de cache do <code>squid</code></h4>
+<pre class="hljs"><code><div><span class="hljs-comment"># Criar a pasta cache</span>
+sudo mkdir /etc/squid/cache
+<span class="hljs-comment"># Dar permissão total</span>
+sudo chmod 777 /etc/squid/cache
+<span class="hljs-comment"># Parar o Squid</span>
+sudo service squid stop
+<span class="hljs-comment"># criar o banco de dados de cache do Squid</span>
+sudo squid -z
+<span class="hljs-comment"># Reinicia o Squid</span>
+</div></code></pre>
+<h4 id="p%C3%A1gina-de-acesso-negado">Página de Acesso Negado</h4>
+<pre class="hljs"><code><div>sudo vi /usr/share/squid/errors/pt-br/ERR_ACCESS_DENIED
+</div></code></pre>
+<p>conteúdo do arquivo:</p>
+<pre class="hljs"><code><div># arquivo html da pagina de acesso negado.
+</div></code></pre>
+<h4 id="criar-pasta-files-e-arquivo-negadosacl">Criar pasta <code>files</code> e arquivo <code>negados.acl</code></h4>
+<pre class="hljs"><code><div>sudo mkdir /etc/squid/files
+sudo touch /etc/squid/files/negados.acl
+</div></code></pre>
+<h4 id="reiniciar-o-squid">Reiniciar o <code>squid</code></h4>
+<pre class="hljs"><code><div>sudo service squid restart
+</div></code></pre>
+<p><br><br></p>
+<h2 id="sarg">Sarg</h2>
+<h3 id="instalar-o-sarg">Instalar o Sarg</h3>
+<pre class="hljs"><code><div>sudo apt install sarg
+</div></code></pre>
+<br>
+<h3 id="configura%C3%A7%C3%A3o-do-sarg">Configuração do <code>sarg</code></h3>
+<pre class="hljs"><code><div>sudo vi /etc/sarg/sarg.conf
+</div></code></pre>
+<h4 id="conte%C3%BAdo-do-arquivo">conteúdo do arquivo:</h4>
+<pre class="hljs"><code><div><span class="hljs-comment"># Localização do arquivo de log de acesso do Squid</span>
+access_log /var/<span class="hljs-built_in">log</span>/squid/access.log
+<span class="hljs-comment"># Título da página de relatórios</span>
+title <span class="hljs-string">"Logs de acesso do Squid"</span>
+<span class="hljs-comment"># Fonte para o texto</span>
+font_face Tahoma,Verdana,Arial
+<span class="hljs-comment"># Cor do cabeçalho</span>
+header_color <span class="hljs-comment">#000</span>
+<span class="hljs-comment"># Cor de fundo do cabeçalho</span>
+header_bgcolor <span class="hljs-comment">#c9b2ed</span>
+<span class="hljs-comment"># Tamanho da fonte</span>
+font_size 14px
+<span class="hljs-comment"># Tamanho da fonte do cabeçalho</span>
+header_font_size 14px
+<span class="hljs-comment"># Tamanho da fonte do título</span>
+title_font_size 14px
+<span class="hljs-comment"># Cor de fundo do texto</span>
+background_color <span class="hljs-comment">#f3f3f3</span>
+<span class="hljs-comment"># Cor do texto</span>
+text_color <span class="hljs-comment">#000</span>
+<span class="hljs-comment"># Cor de fundo do texto</span>
+text_bgcolor lavender
+<span class="hljs-comment"># Cor do título</span>
+title_color <span class="hljs-comment">#966ccc</span>
+<span class="hljs-comment"># URL da imagem do logotipo</span>
+logo_image https://i.postimg.cc/Gtq5tfNL/logo-transparent.png
+<span class="hljs-comment"># Texto do logotipo</span>
+logo_text <span class="hljs-string">"ConectaNet Reports"</span>
+<span class="hljs-comment"># Cor do texto do logotipo</span>
+logo_text_color <span class="hljs-comment">#966ccc</span>
+<span class="hljs-comment"># Diretório temporário</span>
+temporary_dir /tmp
+<span class="hljs-comment"># Diretório de saída dos relatórios</span>
+output_dir /var/www/html/squid-reports
+<span class="hljs-comment"># Resolver IPs</span>
+resolve_ip no
+<span class="hljs-comment"># Exibir IPs do usuário</span>
+user_ip no
+<span class="hljs-comment"># Campo de ordenação para os principais usuários</span>
+topuser_sort_field BYTES reverse
+<span class="hljs-comment"># Campo de ordenação para os usuários</span>
+user_sort_field BYTES reverse
+<span class="hljs-comment"># Arquivo de exclusão de usuários</span>
+exclude_users /etc/sarg/exclude_users
+<span class="hljs-comment"># Arquivo de exclusão de hosts</span>
+exclude_hosts /etc/sarg/exclude_hosts
+<span class="hljs-comment"># Formato da data</span>
+date_format u
+<span class="hljs-comment"># Último log</span>
+lastlog 0
+<span class="hljs-comment"># Remover arquivos temporários</span>
+remove_temp_files yes
+<span class="hljs-comment"># Indexar os relatórios</span>
+index yes
+<span class="hljs-comment"># Organização dos índices em árvore de arquivos</span>
+index_tree file
+<span class="hljs-comment"># Sobrescrever relatórios existentes</span>
+overwrite_report yes
+<span class="hljs-comment"># Registros sem identificação de usuário</span>
+records_without_userid ip
+<span class="hljs-comment"># Utilizar vírgula como separador</span>
+use_comma yes
+<span class="hljs-comment"># Utilitário de e-mail</span>
+mail_utility mailx
+<span class="hljs-comment"># Número de principais sites</span>
+topsites_num 100
+<span class="hljs-comment"># Ordem de classificação dos principais sites</span>
+topsites_sort_order CONNECT D
+<span class="hljs-comment"># Ordem de classificação do índice</span>
+index_sort_order D
+<span class="hljs-comment"># Códigos de exclusão</span>
+exclude_codes /etc/sarg/exclude_codes
+<span class="hljs-comment"># Tempo máximo de duração</span>
+max_elapsed 28800000
+<span class="hljs-comment"># Tipo de relatório</span>
+report_type topusers topsites sites_users users_sites date_time denied auth_failures site_user_time_date downloads
+<span class="hljs-comment"># Arquivo de tabela de usuários</span>
+usertab /etc/sarg/usertab
+<span class="hljs-comment"># URLs longas</span>
+long_url no
+<span class="hljs-comment"># Data e hora por bytes</span>
+date_time_by bytes
+<span class="hljs-comment"># Conjunto de caracteres</span>
+charset Latin1
+<span class="hljs-comment"># Exibir mensagem de sucesso</span>
+show_successful_message no
+<span class="hljs-comment"># Exibir estatísticas de leitura</span>
+show_read_statistics no
+<span class="hljs-comment"># Campos do relatório de principais usuários</span>
+topuser_fields NUM DATE_TIME USERID CONNECT BYTES %BYTES IN-CACHE-OUT USED_TIME MILISEC %TIME TOTAL AVERAGE
+<span class="hljs-comment"># Campos do relatório de usuários</span>
+user_report_fields CONNECT BYTES %BYTES IN-CACHE-OUT USED_TIME MILISEC %TIME TOTAL AVERAGE
+<span class="hljs-comment"># Número de principais usuários</span>
+topuser_num 0
+<span class="hljs-comment"># Exibir logotipo do SARG</span>
+show_sarg_logo no
+<span class="hljs-comment"># Arquivo CSS externo</span>
+external_css_file http://192.168.0.254/squid-reports/style.css
+<span class="hljs-comment"># Sufixo para download</span>
+download_suffix <span class="hljs-string">"zip,arj,bzip,gz,ace,doc,iso,adt,bin,cab,com,dot,drv$,lha,lzh,mdb,mso,ppt,rtf,src,shs,sys,exe,dll,mp3,avi,mpg,mpeg"</span>
+</div></code></pre>
+<p><br><br></p>
+<h2 id="dhcp">DHCP</h2>
+<h3 id="instalar-o-isc-dhcp-server">Instalar o isc-dhcp-server</h3>
+<pre class="hljs"><code><div>sudo apt install isc-dhcp-server
+</div></code></pre>
+<br>
+<h3 id="configurar-o-arquivo-etcdhcpdhcpdconf">Configurar o arquivo /etc/dhcp/dhcpd.conf</h3>
+<p>conteúdo do arquivo [adicionar ao fim do arquivo]:</p>
+<pre class="hljs"><code><div><span class="hljs-comment"># Configuração do serviço DHCP.</span>
+authoritative;
+subnet 192.168.0.0 netmask 255.255.255.0 {
+        range 192.168.0.10 192.168.0.200;
+        option domain-name-servers 192.168.0.254, 8.8.8.8, 1.1.1.1;
+        option domain-name <span class="hljs-string">"srv-dhcp.conectanet.lan"</span>;
+        option subnet-mask 255.255.255.0;
+        option routers 192.168.0.254;
+        option broadcast-address 192.168.0.255;
+        default-lease-time 600;
+        max-lease-time 7200;
+        }
+</div></code></pre>
+<h4 id="configurar-interface-para-execu%C3%A7%C3%A3o-do-dhcp">Configurar interface para execução do DHCP</h4>
+<pre class="hljs"><code><div>sudo vi /etc/default/isc-dhcp-server
+</div></code></pre>
+<p>conteúdo do arquivo:</p>
+<pre class="hljs"><code><div>INTERFACES=<span class="hljs-string">"enp2s0"</span>
+</div></code></pre>
+<h4 id="reiniciar-o-servi%C3%A7o-isc-dhcp-server">Reiniciar o serviço isc-dhcp-server</h4>
+<pre class="hljs"><code><div>sudo service isc-dhcp-server restart
+</div></code></pre>
+<p><br><br></p>
+<h2 id="active-directory-samba-ad-dc">Active Directory (samba-ad-dc)</h2>
+<h3 id="instalar-as-depend%C3%AAncias">Instalar as dependências</h3>
+<br>
+<pre class="hljs"><code><div>sudo apt install build-essential libacl1-dev libattr1-dev libblkid-dev libgnutls-dev libreadline-dev python-dev libpam0g-dev python-dnspython gdb pkg-config libpopt-dev libldap2-dev dnsutils libbsd-dev docbook-xsl libcups2-dev nfs-kernel-server samba samba-common smbclient cifs-utils samba-vfs-modules samba-testsuite samba-dbg acl attr samba-dsdb-modules cups cups-common cups-core-drivers nmap winbind smbclient libnss-winbind libpam-winbind python3 krb5-user krb5-config -y
+</div></code></pre>
+<h4 id="campos-de-configura%C3%A7%C3%A3o-do-kerberos">Campos de configuração do KERBEROS</h4>
+<pre class="hljs"><code><div><span class="hljs-comment"># Realm</span>
+CONECTANET.LAN
+<span class="hljs-comment"># Servers</span>
+srv-cnet.conectanet.lan
+<span class="hljs-comment"># ADM Server</span>
+srv-cnet.conectanet.lan
+</div></code></pre>
+<br>
+<h3 id="desabilitar-servi%C3%A7os-e-ativar-o-samba-ad-dc">Desabilitar serviços e ativar o <code>samba-ad-dc</code></h3>
+<pre class="hljs"><code><div>sudo systemctl <span class="hljs-built_in">disable</span> --now nmbd smbd winbind
+
+sudo systemctl <span class="hljs-built_in">enable</span> samba-ad-dc
+sudo systemctl unmask samba-ad-dc
+</div></code></pre>
+<br>
+<h3 id="renomeando-o-arquivo-smbconf">Renomeando o arquivo <code>smb.conf</code></h3>
+<pre class="hljs"><code><div>sudo mv /etc/samba/smb.conf /etc/samba/smb.conf.bak
+</div></code></pre>
+<br>
+<h3 id="provisionando-o-dom%C3%ADnio">Provisionando o domínio</h3>
+<pre class="hljs"><code><div>sudo samba-tool domain provision --use-rfc2307 --use-xattr=yes --interactive
+
+<span class="hljs-comment"># Campo REALM</span>
+    conectanet.lan
+<span class="hljs-comment"># Campo DOMAIN</span>
+    conectanet
+<span class="hljs-comment"># Campo SERVER ROLE</span>
+    dc
+<span class="hljs-comment"># Campo DNS BACKEND</span>
+    SAMBA_INTERNAL
+<span class="hljs-comment"># Campo DNS FORWARDER</span>
+    8.8.8.8
+<span class="hljs-comment"># Campo ADMINISTRATOR PASSWORD</span>
+    AdmCnet@2024
+</div></code></pre>
+<br>
+<h3 id="substituir-o-arquivo-krb5conf">Substituir o arquivo krb5.conf</h3>
+<pre class="hljs"><code><div>cp /var/lib/samba/private/krb5.conf /etc/
+</div></code></pre>
+<h3 id="iniciar-o-samba-ad-dc-e-reiniciar-o-servidor">Iniciar o <code>samba-ad-dc</code> e reiniciar o servidor</h3>
+<pre class="hljs"><code><div>sudo systemctl start samba-ad-dc
+reboot
+</div></code></pre>
+
+</body>
+</html>
