@@ -4,41 +4,44 @@
 
 <br>
 
+> Este guia apresenta uma visão detalhada das configurações e serviços essenciais implantados nos servidores ConectaNet. Compreende a configuração de um firewall robusto, a implementação de um servidor proxy para aprimorar o desempenho e a segurança das conexões à Internet, a gestão dinâmica de endereços IP por meio do DHCP e a integração do samba-ad-dc como Controlador de Domínio, permitindo autenticação centralizada e gerenciamento de usuários e computadores.
+
+Destinado a administradores de sistemas e equipes de suporte de TI, este documento oferece instruções passo a passo para configurar e otimizar cada componente, desde a configuração básica da máquina e da rede até a instalação e personalização dos serviços mencionados.
+
+Por meio de procedimentos claros e exemplos práticos, espera-se que este guia seja uma ferramenta valiosa na administração eficiente do ambiente de servidores da ConectaNet, garantindo a segurança, estabilidade e desempenho dos sistemas.
+
+# Servidor 'cnet-fw' (Firewall e Proxy)
+
 ## Configuração Básica
 
-> Este documento fornece uma visão geral das configurações e serviços implementados no servidor, incluindo firewall, proxy, DHCP e Active Directory. Esperamos que esta documentação seja útil para administradores de sistemas e equipe de suporte de TI na gestão eficaz do ambiente de servidores da ConectaNet.
-
 ### Informações da Máquina
-- **Nome da máquina:**      srv-cnet
+- **Nome da máquina:**      cnet-fw
 - **Sistema operacional:**  ubuntu server 16.04 LTS
 - **Nome de usuário:**      conectanet
-- **Senha:**                ConectaNet@2023.2
+- **Senha:**                ConectaNet@2024
 
 ### Configuração de Rede
 - **Endereço da rede:**     192.168.0.0/24
 - **Endereço do servidor:** 192.168.0.254
-- **Interfaces de rede:**   eno1, enp2s0
+- **Interfaces de rede:**   eno1, enp3s0
 - **Domínio:**              conectanet.lan
 
 ### Serviços e Aplicativos Instalados
-- **Firewall:**             Utilizamos o iptables para garantir a segurança do servidor e controlar o tráfego de rede.
-- **Proxy:**                O servidor squid atua como proxy, melhorando o desempenho e a segurança das conexões à internet.
-- **DHCP:**                 Utilizamos o isc-dhcp-server para gerenciar a atribuição dinâmica de endereços IP na nossa rede local.
-- **AD:**                   Configuramos o samba-ad-dc para autenticação centralizada e gerenciamento de usuários.
+- **Firewall:**             Utilizamos o iptables para garantir a segurança e controlar o tráfego de rede.
+- **Proxy:**                Utilizamos o squid como proxy, melhorando o desempenho e a segurança das conexões à internet.
 
 <br>
 
 ### Atualização dos pacotes do sistema
-Para garantir que o sistema esteja atualizado, execute os seguintes comandos:
+Para garantir que o sistema esteja atualizado, execute o seguinte comando:
 ```bash
-sudo apt update
-sudo apt upgrade -y
+sudo apt update && sudo apt upgrade -y
 ```
 
 <br>
 
-### Configuração do arquivo `/etc/hosts`
-Edite o arquivo `/etc/hosts` com o seguinte conteúdo:
+### Configuração do arquivo de hosts
+Abra e edite o arquivo com o seguinte conteúdo:
 ```bash
 sudo vi /etc/hosts
 ```
@@ -46,13 +49,14 @@ sudo vi /etc/hosts
 #### Conteúdo do arquivo:
 ```bash
 127.0.0.1       localhost
-192.168.0.254   srv-cnet.conectanet.lan srv-cnet
+127.0.1.1       cnet-fw
+192.168.0.254   cnet-fw.conectanet.lan cnet-fw
 ```
 
 <br>
 
 ### Configuração das interfaces de rede
-Edite o arquivo `/etc/network/interfaces` com o seguinte conteúdo:
+Abra e edite o arquivo de interfaces com o seguinte conteúdo:
 ```bash
 sudo vi /etc/network/interfaces
 ```
@@ -64,21 +68,18 @@ auto eno1
 iface eno1 inet dhcp
 
 # Interface de rede interna
-auto enp2s0
+auto enp3s0
 iface enp2s0 inet static
-        address 192.168.0.254
-        netmask 255.255.255.0
-        network 192.168.0.0
-        broadcast 192.168.0.255
-        dns-nameservers 192.168.0.254 8.8.8.8 1.1.1.1
-        dns-search conectanet.lan
-        dns-domain conectanet.lan
+	address 192.168.0.254
+	netmask 255.255.255.0
+	network 192.168.0.0
+	broadcast 192.168.0.255
 ```
 
 #### Reinicie a interface de rede
 ```bash
-sudo ifup enp2s0
 sudo systemctl restart networking
+# Caso não resolva reinicie a máquina
 ```
 
 <br>
@@ -94,9 +95,10 @@ sudo vi /etc/resolv.conf
 
 ```bash
 # Endereço do controlador de domínio Samba
-nameserver 192.168.0.254
-# Endereço de fallback
+nameserver 192.168.0.253
+# Endereços de fallback
 nameserver 8.8.8.8
+nameserver 1.1.1.1
 # Domínio de pesquisa para resolução de nomes
 search conectanet.lan
 ```
@@ -109,13 +111,147 @@ sudo chattr +i /etc/resolv.conf
 
 <br><br>
 
-## Firewall Iptables
-
 ### Arquivo de script das regras do firewall (Iptables)
 
-#### conteúdo do arquivo `firewall`:
+#### conteúdo do arquivo firewall:
 ```bash
+#!/bin/bash
 
+
+# Variaveis locais
+ext="eno1"                # Interface de rede externa
+int="enp3s0"              # Interface de rede interna
+lnet="192.168.0.0/24"     # endereço da rede local
+server="192.168.0.254"    # endereço do servidor
+
+
+#==  Funcoes para definicao de regras ======================================================#
+
+
+local(){
+    # Funcao para configuracao das regras de firewall para comunicacao local
+
+    # Libera todo o trafego da lo
+        iptables -A INPUT -i lo -j ACCEPT
+        iptables -A OUTPUT -o lo -j ACCEPT
+
+    # Permite trafego nas portas (80, 443, 53, 123)
+        iptables -A INPUT -i $ext -p tcp -m multiport --sports 80,443 -j ACCEPT
+        iptables -A INPUT -p udp -m multiport --sports 53,123 -j ACCEPT
+        iptables -A OUTPUT -o $ext -p tcp -m multiport --dports 80,443 -j ACCEPT
+        iptables -A OUTPUT -p udp -m multiport --dports 53,123 -j ACCEPT
+
+   # Regras DNS e HTTP adicionais
+        iptables -A INPUT -d $server -p tcp --sport 80 -j ACCEPT
+        iptables -A INPUT -d $server -p tcp --sport 53 -j ACCEPT
+        iptables -A INPUT -d $server -p udp --sport 53 -j ACCEPT
+
+    # Libera o trafego DHCP
+        iptables -A INPUT -p udp --dport 68 -j ACCEPT
+        iptables -A OUTPUT -p udp --sport 68 -j ACCEPT
+        iptables -A INPUT -p udp --dport 67 -j ACCEPT
+        iptables -A OUTPUT -p udp --sport 67 -j ACCEPT
+
+    # Permitir tráfego ICMP de entrada e saída
+        iptables -A INPUT -p icmp --icmp-type echo-request -m limit --limit 5/s -j ACCEPT
+        iptables -A OUTPUT -p icmp --icmp-type echo-reply -j ACCEPT
+        # Descartar tráfego ICMP de entrada e saída além das regras permitidas acima
+        iptables -A INPUT -p icmp -j DROP
+        iptables -A OUTPUT -p icmp -j DROP
+
+    # Libera o trafego TCP do Squid (3128)
+        iptables -A INPUT -i $int -p tcp --dport 3128 -j ACCEPT
+        iptables -A OUTPUT -o $int -p tcp --sport 3128 -j ACCEPT
+
+    # libera total acesso a porta SSH (22)
+        iptables -A INPUT -i $int -p tcp --dport 22 -j ACCEPT
+        iptables -A OUTPUT -o $int -p tcp --sport 22 -j ACCEPT
+
+
+    # Regras para permitir conexões relacionadas e estabelecidas
+        iptables -A INPUT -p tcp -m state --state ESTABLISHED,RELATED -j ACCEPT
+        iptables -A OUTPUT -p tcp -m state --state ESTABLISHED,RELATED -j ACCEPT
+}
+
+
+forward(){
+    # Funcao para encaminhamento de trafego entre WAN e LAN
+
+    # Libera o trafego entre a INTERNET e a REDE LOCAL
+        iptables -A FORWARD -i $ext -p tcp -m multiport --sports 80,443 -d $lnet -j ACCEPT
+        iptables -A FORWARD -i $ext -p udp -m multiport --sports 53,123 -d $lnet -j ACCEPT
+        iptables -A FORWARD -i $int -p tcp -m multiport --dports 80,443 -s $lnet -j ACCEPT
+        iptables -A FORWARD -i $int -p udp -m multiport --dports 53,123 -s $lnet -j ACCEPT
+
+    # Permitir tráfego ICMP de encaminhamento necessários para o funcionamento normal
+        iptables -A FORWARD -p icmp --icmp-type echo-request -m limit --limit 10/s -j ACCEPT
+        iptables -A FORWARD -p icmp --icmp-type echo-reply -m limit --limit 10/s -j ACCEPT
+        # Descartar tráfego ICMP de encaminhamento além das regras permitidas acima
+        iptables -A FORWARD -p icmp -j DROP
+}
+
+
+internet(){
+    # Funcao para habilitar o compartilhamento da internet entre as redes
+
+    # Habilita o encaminhamento de IP
+    sysctl -w net.ipv4.ip_forward=1
+
+    # Configura NAT para o trafego da LAN para a Internet
+    iptables -t nat -A POSTROUTING -s $lnet -o $ext -j MASQUERADE
+
+    # Direcionar navegacao na porta HTTP (80) para a porta do proxy/squid (3128)
+    iptables -t nat -A PREROUTING -i $int -p tcp --dport 80 -j REDIRECT --to-port 3128
+}
+
+
+#==  Funcoes de controle  ==================================================================#
+
+default() {
+    iptables -N LOGGING
+    iptables -A LOGGING -m limit --limit 5/min -j LOG --log-prefix "iptables-denied: " --log-level 7
+    iptables -A LOGGING -j DROP
+
+    iptables -A INPUT -j LOGGING
+    iptables -A OUTPUT -j LOGGING
+    iptables -A FORWARD -j LOGGING
+
+    iptables -P INPUT DROP
+    iptables -P OUTPUT DROP
+    iptables -P FORWARD DROP
+}
+
+iniciar(){
+    # Funcao para iniciar o firewall
+    local
+    forward
+    internet
+    default
+}
+
+
+parar(){
+    # Funcao para parar o firewall
+    iptables -P INPUT ACCEPT
+    iptables -P OUTPUT ACCEPT
+    iptables -P FORWARD ACCEPT
+    iptables -F
+    iptables -X
+}
+
+
+#==  Script para controle do firewall  =====================================================#
+
+
+case $1 in
+    start|Start|START)iniciar;;
+    stop|Stop|STOP)parar;;
+    restart|Restart|RESTART)parar;iniciar;;
+    listar|list)iptables -nvL;;
+    vi|conf)sudo vi /usr/local/sbin/firewall;;
+    *)echo "usage:
+    firewall [start|stop|restart|list|vi]";;
+esac
 ```
 
 #### Tornar o script um executavel
@@ -164,14 +300,14 @@ sudo systemctl enable firewall.service
 
 ## Proxy Squid
 
-### Instalar o `squid3` e `apache2`
+### Instalar o squid3 e apache2
 ```bash
 sudo apt install squid3 apache2
 ```
 
 <br>
 
-### Configuração do `squid`
+### Configuração do squid
 ```bash
 sudo vi /etc/squid/squid.conf
 ```
@@ -243,7 +379,7 @@ refresh_pattern (Release|Packages(.gz)*)$      0       20%     2880
 refresh_pattern .               0       20%     4320
 ```
 
-#### Pasta de cache do `squid`
+#### Pasta de cache do squid
 ```bash
 # Criar a pasta cache
 sudo mkdir /etc/squid/cache
@@ -256,22 +392,14 @@ sudo squid -z
 # Reinicia o Squid
 ```
 
-#### Página de Acesso Negado
-```bash
-sudo vi /usr/share/squid/errors/pt-br/ERR_ACCESS_DENIED
-```
-conteúdo do arquivo:
-```html
-# arquivo html da pagina de acesso negado.
-```
 
-#### Criar pasta `files` e arquivo `negados.acl`
+#### Criar pasta files e arquivo negados.acl
 ```bash
 sudo mkdir /etc/squid/files
 sudo touch /etc/squid/files/negados.acl
 ```
 
-#### Reiniciar o `squid`
+#### Reiniciar o squid
 ```bash
 sudo service squid restart
 ```
@@ -286,7 +414,7 @@ sudo apt install sarg
 
 <br>
 
-### Configuração do `sarg`
+### Configuração do sarg
 ```bash
 sudo vi /etc/sarg/sarg.conf
 ```
@@ -396,6 +524,109 @@ download_suffix "zip,arj,bzip,gz,ace,doc,iso,adt,bin,cab,com,dot,drv$,lha,lzh,md
 
 <br><br>
 
+# Servidor 'cnet-ad' (samba-ad-dc e DHCP)
+
+## Configuração Básica
+
+### Informações da Máquina
+- **Nome da máquina:**      cnet-ad
+- **Sistema operacional:**  ubuntu server 16.04 LTS
+- **Nome de usuário:**      conectanet
+- **Senha:**                ConectaNet@2024
+
+### Configuração de Rede
+- **Endereço da rede:**     192.168.0.0/24
+- **Endereço do servidor:** 192.168.0.253
+- **Interfaces de rede:**   eno1
+- **Domínio:**              conectanet.lan
+
+### Serviços e Aplicativos Instalados
+ - **DHCP:** Utilizamos o isc-dhcp-server para gerenciar a atribuição dinâmica de endereços IP na nossa rede local.
+- **AD:** Configuramos o samba-ad-dc para autenticação centralizada e gerenciamento de usuários e computadores.
+
+<br>
+
+### Atualização dos pacotes do sistema
+Para garantir que o sistema esteja atualizado, execute o seguinte comando:
+```bash
+sudo apt update && sudo apt upgrade -y
+```
+
+<br>
+
+### Configuração do arquivo de hosts
+Abra e edite o arquivo com o seguinte conteúdo:
+```bash
+sudo vi /etc/hosts
+```
+
+#### Conteúdo do arquivo:
+```bash
+127.0.0.1       localhost
+127.0.1.1       cnet-ad
+192.168.0.253   cnet-ad.conectanet.lan cnet-ad
+```
+
+<br>
+
+### Configuração das interfaces de rede
+Abra e edite o arquivo de interfaces com o seguinte conteúdo:
+```bash
+sudo vi /etc/network/interfaces
+```
+
+#### Conteúdo do arquivo:
+```bash
+
+# Interface de rede interna
+auto eno1
+iface eno1 inet static
+	address 192.168.0.253
+	netmask 255.255.255.0
+	network 192.168.0.0
+	broadcast 192.168.0.255
+	gateway 192.168.0.254
+	dns-nameservers 192.168.0.253 8.8.8.8 1.1.1.1
+	dns-search conectanet.lan
+	dns-domain conectanet.lan
+```
+
+#### Reinicie a interface de rede
+```bash
+sudo systemctl restart networking
+# Caso não resolva reinicie a máquina
+```
+
+<br>
+
+### Configuração manual de resolução de DNS
+```bash
+sudo systemctl disable --now systemd-resolved
+sudo unlink /etc/resolv.conf
+sudo vi /etc/resolv.conf
+```
+
+#### Conteúdo do arquivo:
+
+```bash
+# Endereço do controlador de domínio Samba
+nameserver 192.168.0.253
+# Endereços de fallback
+nameserver 8.8.8.8
+nameserver 1.1.1.1
+# Domínio de pesquisa para resolução de nomes
+search conectanet.lan
+```
+
+#### Adicione o atributo de imutabilidade:
+
+```bash
+sudo chattr +i /etc/resolv.conf
+```
+
+<br><br>
+
+
 ## DHCP
 
 ### Instalar o isc-dhcp-server
@@ -405,15 +636,20 @@ sudo apt install isc-dhcp-server
 
 <br>
 
-### Configurar o arquivo /etc/dhcp/dhcpd.conf
-conteúdo do arquivo [adicionar ao fim do arquivo]:
+### Configurar o arquivo dhcp.conf
+
+```bash
+sudo vi /etc/dhcp/dhcpd.conf
+```
+
+#### conteúdo do arquivo [adicionar ao fim do arquivo]:
 ```bash
 # Configuração do serviço DHCP.
 authoritative;
 subnet 192.168.0.0 netmask 255.255.255.0 {
         range 192.168.0.10 192.168.0.200;
-        option domain-name-servers 192.168.0.254, 8.8.8.8, 1.1.1.1;
-        option domain-name "srv-dhcp.conectanet.lan";
+        option domain-name-servers 192.168.0.253, 8.8.8.8, 1.1.1.1;
+        option domain-name "cnet-dhcp.conectanet.lan";
         option subnet-mask 255.255.255.0;
         option routers 192.168.0.254;
         option broadcast-address 192.168.0.255;
@@ -428,7 +664,7 @@ sudo vi /etc/default/isc-dhcp-server
 ```
 conteúdo do arquivo:
 ```bash
-INTERFACES="enp2s0"
+INTERFACES="eno1"
 ```
 
 #### Reiniciar o serviço isc-dhcp-server
@@ -453,14 +689,14 @@ sudo apt install build-essential libacl1-dev libattr1-dev libblkid-dev libgnutls
 # Realm
 CONECTANET.LAN
 # Servers
-srv-cnet.conectanet.lan
+cnet-ad.conectanet.lan
 # ADM Server
-srv-cnet.conectanet.lan
+cnet-ad.conectanet.lan
 ```
 
 <br>
 
-### Desabilitar serviços e ativar o `samba-ad-dc`
+### Desabilitar serviços e ativar o samba-ad-dc
 ```bash
 sudo systemctl disable --now nmbd smbd winbind
 
@@ -470,14 +706,14 @@ sudo systemctl unmask samba-ad-dc
 
 <br>
 
-### Renomeando o arquivo `smb.conf`
+### Renomear o arquivo smb.conf
 ```bash
 sudo mv /etc/samba/smb.conf /etc/samba/smb.conf.bak
 ```
 
 <br>
 
-### Provisionando o domínio
+### Provisionar o domínio
 ```bash
 sudo samba-tool domain provision --use-rfc2307 --use-xattr=yes --interactive
 
