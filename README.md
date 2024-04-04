@@ -738,7 +738,7 @@ sudo samba-tool domain provision --use-rfc2307 --use-xattr=yes --interactive
 cp /var/lib/samba/private/krb5.conf /etc/
 ```
 
-### Iniciar o `samba-ad-dc` e reiniciar o servidor
+### Iniciar o samba-ad-dc e reiniciar o servidor
 ```bash
 sudo systemctl start samba-ad-dc
 reboot
