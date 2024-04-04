@@ -4,7 +4,7 @@
 
 <br>
 
-> Este guia apresenta uma visão detalhada das configurações e serviços essenciais implantados nos servidores ConectaNet. Compreende a configuração de um firewall robusto, a implementação de um servidor proxy para aprimorar o desempenho e a segurança das conexões à Internet, a gestão dinâmica de endereços IP por meio do DHCP e a integração do samba-ad-dc como Controlador de Domínio, permitindo autenticação centralizada e gerenciamento de usuários e computadores.
+Este guia apresenta uma visão detalhada das configurações e serviços essenciais implantados nos servidores ConectaNet. Compreende a configuração de um firewall robusto, a implementação de um servidor proxy para aprimorar o desempenho e a segurança das conexões à Internet, a gestão dinâmica de endereços IP por meio do DHCP e a integração do samba-ad-dc como Controlador de Domínio, permitindo autenticação centralizada e gerenciamento de usuários e computadores.
 
 Destinado a administradores de sistemas e equipes de suporte de TI, este documento oferece instruções passo a passo para configurar e otimizar cada componente, desde a configuração básica da máquina e da rede até a instalação e personalização dos serviços mencionados.
 
